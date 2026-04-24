@@ -1,601 +1,628 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 
-const COLORS = [
-  { name: "Rose", hex: "#ff4f73" },
-  { name: "Blue", hex: "#4db8ff" },
-  { name: "Green", hex: "#9be564" },
-  { name: "Gold", hex: "#ffc65c" },
-  { name: "Violet", hex: "#a990ff" },
-  { name: "Cyan", hex: "#58d7ee" },
-  { name: "Pink", hex: "#f783c7" },
-  { name: "Mint", hex: "#63ddb1" },
+const PLAYERS = [
+  { name: "Red", color: "#ff453a", soft: "rgba(255,69,58,.18)" },
+  { name: "Blue", color: "#0a84ff", soft: "rgba(10,132,255,.18)" },
+  { name: "Green", color: "#30d158", soft: "rgba(48,209,88,.18)" },
+  { name: "Amber", color: "#ff9f0a", soft: "rgba(255,159,10,.18)" },
 ];
 
-const UI = {
-  page: "#05060a",
-  pageTop: "#070911",
-  panel: "#0b0f18",
-  panelSoft: "#0c0f17",
-  tile: "#11141d",
-  tileActive: "#1a2030",
-  button: "#121620",
-  text: "rgba(255,255,255,0.94)",
-  muted: "rgba(255,255,255,0.38)",
-  ring: "rgba(255,255,255,0.05)",
+const BOARD_SIZES = {
+  compact: { label: "Small", rows: 6, cols: 5 },
+  classic: { label: "Medium", rows: 8, cols: 6 },
+  wide: { label: "Large", rows: 9, cols: 7 },
 };
 
-const DEFAULT_ROWS = 9;
-const DEFAULT_COLS = 6;
-const TRAVEL_MS = 170;
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function capacityFor(row, col, rows, cols) {
+  const verticalEdge = row === 0 || row === rows - 1;
+  const horizontalEdge = col === 0 || col === cols - 1;
+  if (verticalEdge && horizontalEdge) return 2;
+  if (verticalEdge || horizontalEdge) return 3;
+  return 4;
+}
 
 function makeBoard(rows, cols) {
-  return Array.from({ length: rows }, () =>
-    Array.from({ length: cols }, () => ({ owner: null, count: 0 }))
+  return Array.from({ length: rows }, (_, r) =>
+    Array.from({ length: cols }, (_, c) => ({
+      count: 0,
+      owner: null,
+      cap: capacityFor(r, c, rows, cols),
+      pulse: 0,
+    }))
   );
 }
 
-function copyBoard(board) {
+function cloneBoard(board) {
   return board.map((row) => row.map((cell) => ({ ...cell })));
 }
 
-function neighbors(r, c, rows, cols) {
-  const out = [];
-  if (r > 0) out.push([r - 1, c]);
-  if (r < rows - 1) out.push([r + 1, c]);
-  if (c > 0) out.push([r, c - 1]);
-  if (c < cols - 1) out.push([r, c + 1]);
-  return out;
+function getNeighbors(row, col, rows, cols) {
+  return [
+    [row - 1, col],
+    [row + 1, col],
+    [row, col - 1],
+    [row, col + 1],
+  ].filter(([r, c]) => r >= 0 && c >= 0 && r < rows && c < cols);
 }
 
-function capacity(r, c, rows, cols) {
-  return neighbors(r, c, rows, cols).length;
-}
-
-function playerMass(board, playerCount) {
-  const counts = Array(playerCount).fill(0);
+function activePlayersOnBoard(board) {
+  const present = new Set();
   for (const row of board) {
     for (const cell of row) {
-      if (cell.owner !== null && cell.count > 0) counts[cell.owner] += cell.count;
+      if (cell.owner !== null && cell.count > 0) present.add(cell.owner);
     }
   }
-  return counts;
+  return present;
 }
 
-function findCritical(board, rows, cols) {
-  const list = [];
-  for (let r = 0; r < rows; r += 1) {
-    for (let c = 0; c < cols; c += 1) {
-      if (board[r][c].count >= capacity(r, c, rows, cols)) list.push([r, c]);
+function totalOrbs(board, player) {
+  let total = 0;
+  for (const row of board) {
+    for (const cell of row) {
+      if (cell.owner === player) total += cell.count;
     }
   }
-  return list;
-}
-
-function explode(board, critical, owner, rows, cols) {
-  const next = copyBoard(board);
-  for (const [r, c] of critical) {
-    next[r][c] = { owner: null, count: 0 };
-    for (const [nr, nc] of neighbors(r, c, rows, cols)) {
-      next[nr][nc].owner = owner;
-      next[nr][nc].count += 1;
-    }
-  }
-  return next;
-}
-
-function canPlayCell(cell, activePlayer, disabled) {
-  return !disabled && (cell.owner === null || cell.owner === activePlayer);
+  return total;
 }
 
 function runLogicTests() {
-  const errors = [];
-  const assert = (condition, message) => {
-    if (!condition) errors.push(message);
+  const results = [];
+  const test = (name, assertion) => {
+    try {
+      assertion();
+      results.push({ name, passed: true });
+    } catch (error) {
+      results.push({ name, passed: false, error: error.message });
+    }
+  };
+  const expect = (condition, message) => {
+    if (!condition) throw new Error(message);
   };
 
-  const board = makeBoard(3, 3);
-  assert(board.length === 3, "makeBoard creates the right row count");
-  assert(board[0].length === 3, "makeBoard creates the right column count");
-  assert(capacity(0, 0, 3, 3) === 2, "corner capacity is 2");
-  assert(capacity(0, 1, 3, 3) === 3, "edge capacity is 3");
-  assert(capacity(1, 1, 3, 3) === 4, "center capacity is 4");
+  test("corner capacity", () => {
+    expect(capacityFor(0, 0, 8, 6) === 2, "corner should be 2");
+    expect(capacityFor(7, 5, 8, 6) === 2, "corner should be 2");
+  });
+  test("edge capacity", () => {
+    expect(capacityFor(0, 2, 8, 6) === 3, "edge should be 3");
+    expect(capacityFor(4, 5, 8, 6) === 3, "edge should be 3");
+  });
+  test("center capacity", () => {
+    expect(capacityFor(3, 3, 8, 6) === 4, "center should be 4");
+  });
+  test("neighbor counts", () => {
+    expect(getNeighbors(0, 0, 8, 6).length === 2, "corner neighbors");
+    expect(getNeighbors(0, 3, 8, 6).length === 3, "edge neighbors");
+    expect(getNeighbors(3, 3, 8, 6).length === 4, "center neighbors");
+  });
+  test("board shape", () => {
+    const board = makeBoard(8, 6);
+    expect(board.length === 8, "rows");
+    expect(board[0].length === 6, "cols");
+    expect(board[0][0].cap === 2, "corner cap");
+  });
+  test("orb ownership totals", () => {
+    const board = makeBoard(3, 3);
+    board[0][0].owner = 0;
+    board[0][0].count = 2;
+    board[1][1].owner = 1;
+    board[1][1].count = 1;
+    expect(totalOrbs(board, 0) === 2, "player 0 total");
+    expect(totalOrbs(board, 1) === 1, "player 1 total");
+    expect(activePlayersOnBoard(board).size === 2, "active players");
+  });
+  test("board presets are valid", () => {
+    for (const preset of Object.values(BOARD_SIZES)) {
+      expect(preset.rows >= 6, "preset rows should be playable");
+      expect(preset.cols >= 5, "preset cols should be playable");
+    }
+  });
 
-  board[0][0] = { owner: 0, count: 2 };
-  const critical = findCritical(board, 3, 3);
-  assert(critical.length === 1 && critical[0][0] === 0 && critical[0][1] === 0, "critical corner is detected");
-
-  const exploded = explode(board, critical, 0, 3, 3);
-  assert(exploded[0][0].owner === null && exploded[0][0].count === 0, "exploded source clears");
-  assert(exploded[1][0].owner === 0 && exploded[1][0].count === 1, "explosion sends orb down");
-  assert(exploded[0][1].owner === 0 && exploded[0][1].count === 1, "explosion sends orb right");
-
-  const mass = playerMass(exploded, 2);
-  assert(mass[0] === 2 && mass[1] === 0, "playerMass counts exploded orbs correctly");
-
-  const centerBoard = makeBoard(3, 3);
-  centerBoard[1][1] = { owner: 1, count: 4 };
-  const centerExploded = explode(centerBoard, [[1, 1]], 1, 3, 3);
-  assert(playerMass(centerExploded, 2)[1] === 4, "center explosion sends four orbs correctly");
-
-  assert(canPlayCell({ owner: null, count: 0 }, 0, false), "empty cells are playable");
-  assert(canPlayCell({ owner: 0, count: 1 }, 0, false), "owned cells are playable");
-  assert(!canPlayCell({ owner: 1, count: 1 }, 0, false), "opponent cells are not playable");
-  assert(!canPlayCell({ owner: null, count: 0 }, 0, true), "disabled board blocks play");
-
-  if (errors.length) console.error("Chain Reactor logic tests failed:", errors);
-  else console.info("Chain Reactor logic tests passed");
+  return results;
 }
 
-function SvgIcon({ type, size = 24 }) {
-  const common = {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 2.6,
-    strokeLinecap: "round",
-    strokeLinejoin: "round",
-    "aria-hidden": true,
-  };
-
-  if (type === "plus") {
-    return (
-      <svg {...common}>
-        <path d="M12 5v14" />
-        <path d="M5 12h14" />
-      </svg>
-    );
-  }
-
-  if (type === "minus") {
-    return (
-      <svg {...common}>
-        <path d="M5 12h14" />
-      </svg>
-    );
-  }
+function OrbCluster({ count, color }) {
+  if (!count) return null;
+  const positions = {
+    1: [[50, 50]],
+    2: [[40, 50], [60, 50]],
+    3: [[50, 39], [39, 60], [61, 60]],
+    4: [[40, 40], [60, 40], [40, 60], [60, 60]],
+  }[Math.min(count, 4)];
 
   return (
-    <svg {...common}>
-      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
-      <path d="M21 3v6h-6" />
+    <div className="absolute inset-0">
+      {positions.map(([x, y], i) => (
+        <motion.span
+          key={i}
+          className="absolute rounded-full"
+          style={{
+            left: `${x}%`,
+            top: `${y}%`,
+            width: "27%",
+            aspectRatio: "1 / 1",
+            translateX: "-50%",
+            translateY: "-50%",
+            background: color,
+            boxShadow: `0 10px 28px ${color}44, inset 0 1px 2px rgba(255,255,255,.5)`,
+          }}
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 360, damping: 24, delay: i * 0.015 }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function IconReset({ className = "" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 12a9 9 0 1 0 3-6.7" />
+      <path d="M3 4v6h6" />
     </svg>
   );
 }
 
-function Button({ children, className = "", kind = "primary", style, ...props }) {
-  const baseStyle = {
-    color: kind === "primary" ? UI.page : "rgba(255,255,255,0.9)",
-    background: kind === "primary" ? "rgba(255,255,255,0.9)" : kind === "ghost" ? "transparent" : UI.button,
-    boxShadow: "none",
-    border: kind === "primary" ? "none" : `1px solid ${UI.ring}`,
-    ...style,
-  };
+function AppShell({ children }) {
+  return (
+    <main className="min-h-screen overflow-hidden bg-[#050507] text-[#f5f5f7] antialiased">
+      <div className="fixed inset-0 bg-[radial-gradient(circle_at_50%_-14%,rgba(80,80,92,.42),rgba(5,5,7,.2)_38%,rgba(5,5,7,1)_74%)]" />
+      <section className="relative mx-auto flex min-h-screen w-full max-w-[430px] flex-col px-5 pb-5 pt-4">
+        {children}
+      </section>
+    </main>
+  );
+}
 
+function PrimaryButton({ children, className = "", ...props }) {
   return (
     <button
-      className={`touch-manipulation select-none rounded-full px-4 py-3 text-sm font-medium tracking-[-0.015em] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-35 ${className}`}
-      style={baseStyle}
       {...props}
+      className={`h-12 rounded-full bg-[#f5f5f7] px-6 text-[15px] font-semibold text-[#050507] transition active:scale-95 ${className}`}
     >
       {children}
     </button>
   );
 }
 
-function OrbCluster({ color, count, fullness, cellSize }) {
-  const visible = Math.min(count, 3);
-  const base = Math.max(12, cellSize * 0.22);
-  const orb = base;
-  const radius = visible === 1 ? 0 : visible === 2 ? base * 0.5 : base * 0.58;
-  const duration = fullness > 0.85 ? 1.05 : fullness > 0.55 ? 1.65 : 2.5;
-
+function GhostButton({ children, className = "", ...props }) {
   return (
-    <motion.span
-      className="absolute left-1/2 top-1/2 h-0 w-0"
-      animate={{ rotate: 360 }}
-      transition={{ duration, repeat: Infinity, ease: "linear" }}
-      style={{ transformOrigin: "0 0" }}
+    <button
+      {...props}
+      className={`h-11 rounded-full bg-white/[.075] px-5 text-[14px] font-semibold text-[#f5f5f7] ring-1 ring-white/[.08] transition active:scale-95 ${className}`}
     >
-      {Array.from({ length: visible }).map((_, i) => {
-        const angle = visible === 1 ? 0 : visible === 2 ? i * Math.PI : i * ((Math.PI * 2) / 3) - Math.PI / 2;
-        const x = Math.cos(angle) * radius;
-        const y = Math.sin(angle) * radius;
+      {children}
+    </button>
+  );
+}
 
-        return (
-          <motion.span
-            key={i}
-            className="absolute rounded-full"
-            style={{
-              width: orb,
-              height: orb,
-              left: x,
-              top: y,
-              marginLeft: -orb / 2,
-              marginTop: -orb / 2,
-              background: color,
-              boxShadow: "0 0 10px rgba(255,255,255,0.18)",
-            }}
-            animate={{
-              x: fullness > 0.8 ? [0, -1.8, 1.8, 0] : [0, -0.5, 0.5, 0],
-              y: fullness > 0.8 ? [0, 1.8, -1.8, 0] : [0, 0.5, -0.5, 0],
-              scale: fullness > 0.8 ? [1, 1.02, 0.98, 1] : 1,
-            }}
-            transition={{ duration: fullness > 0.8 ? 0.34 : 0.95, repeat: Infinity, ease: "easeInOut", delay: i * 0.05 }}
+function WelcomeScreen({ onContinue }) {
+  return (
+    <AppShell>
+      <div className="flex flex-1 flex-col justify-between py-8">
+        <div className="pt-8">
+          <p className="text-[13px] font-medium tracking-tight text-[#8e8e93]">A chain reaction strategy game</p>
+          <h1 className="mt-2 text-[56px] font-semibold leading-[.9] tracking-[-.075em]">Chain<br />Reactor</h1>
+        </div>
+
+        <div className="relative mx-auto grid h-64 w-64 place-items-center">
+          <motion.div
+            className="absolute h-56 w-56 rounded-full bg-white/[.045] ring-1 ring-white/[.08]"
+            animate={{ scale: [1, 1.06, 1], opacity: [.65, 1, .65] }}
+            transition={{ duration: 4, repeat: Infinity }}
           />
-        );
-      })}
-    </motion.span>
-  );
-}
+          <motion.div
+            className="absolute h-36 w-36 rounded-full bg-[#0a84ff]/20 blur-xl"
+            animate={{ x: [-20, 20, -20], y: [10, -8, 10] }}
+            transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+          />
+          {PLAYERS.map((player, i) => (
+            <motion.span
+              key={player.name}
+              className="absolute h-8 w-8 rounded-full"
+              style={{ background: player.color, boxShadow: `0 16px 40px ${player.color}44` }}
+              animate={{ rotate: 360 }}
+              transition={{ duration: 9 + i, repeat: Infinity, ease: "linear" }}
+            />
+          ))}
+          <div className="z-10 h-20 w-20 rounded-full bg-[#f5f5f7] shadow-[0_30px_80px_rgba(0,0,0,.35)]" />
+        </div>
 
-function Cell({ cell, r, c, rows, cols, activePlayer, disabled, onTap, cellSize }) {
-  const owned = cell.owner !== null;
-  const canTap = canPlayCell(cell, activePlayer, disabled);
-  const cap = capacity(r, c, rows, cols);
-  const fullness = cell.count > 0 ? Math.min(1, cell.count / Math.max(1, cap - 1)) : 0;
-  const color = owned ? COLORS[cell.owner].hex : "transparent";
-
-  return (
-    <motion.button
-      aria-label={`row ${r + 1}, column ${c + 1}`}
-      disabled={!canTap}
-      onClick={onTap}
-      whileTap={canTap ? { scale: 0.94 } : undefined}
-      className="relative flex aspect-square items-center justify-center rounded-[0.9rem] transition disabled:opacity-35"
-      style={{
-        background: UI.tile,
-        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.02)",
-      }}
-    >
-      {owned && cell.count > 0 && <OrbCluster color={color} count={cell.count} fullness={fullness} cellSize={cellSize} />}
-    </motion.button>
-  );
-}
-
-function FlyingOrb({ orb, rows, cols, cellSize }) {
-  const fromLeft = `${((orb.from.c + 0.5) / cols) * 100}%`;
-  const fromTop = `${((orb.from.r + 0.5) / rows) * 100}%`;
-  const toLeft = `${((orb.to.c + 0.5) / cols) * 100}%`;
-  const toTop = `${((orb.to.r + 0.5) / rows) * 100}%`;
-  const size = Math.max(12, cellSize * 0.27);
-
-  return (
-    <motion.span
-      className="pointer-events-none absolute z-20 rounded-full"
-      style={{
-        background: orb.color,
-        width: size,
-        height: size,
-        left: fromLeft,
-        top: fromTop,
-        marginLeft: -size / 2,
-        marginTop: -size / 2,
-        boxShadow: "0 0 10px rgba(255,255,255,0.22)",
-      }}
-      initial={{ left: fromLeft, top: fromTop, opacity: 1, scale: 1 }}
-      animate={{ left: toLeft, top: toTop, opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 1 }}
-      transition={{ duration: TRAVEL_MS / 1000, ease: "easeInOut" }}
-    />
-  );
-}
-
-function Stepper({ label, value, min, max, onChange }) {
-  return (
-    <div className="rounded-[1.5rem] p-3" style={{ background: UI.tile, border: `1px solid ${UI.ring}` }}>
-      <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: UI.muted }}>{label}</div>
-      <div className="flex items-center justify-between">
-        <Button
-          kind="ghost"
-          className="flex h-12 w-12 items-center justify-center rounded-full p-0"
-          disabled={value <= min}
-          onClick={() => onChange(value - 1)}
-          style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${UI.ring}` }}
-        >
-          <SvgIcon type="minus" size={24} />
-        </Button>
-        <div className="text-2xl font-semibold tracking-[-0.035em]" style={{ color: "rgba(255,255,255,0.9)" }}>{value}</div>
-        <Button
-          kind="ghost"
-          className="flex h-12 w-12 items-center justify-center rounded-full p-0"
-          disabled={value >= max}
-          onClick={() => onChange(value + 1)}
-          style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${UI.ring}` }}
-        >
-          <SvgIcon type="plus" size={24} />
-        </Button>
+        <div className="space-y-4 pb-4">
+          <p className="max-w-[300px] text-[17px] leading-6 tracking-[-.025em] text-[#c7c7cc]">
+            Place orbs. Trigger explosions. Capture the board before your opponents do.
+          </p>
+          <PrimaryButton onClick={onContinue} className="w-full">Continue</PrimaryButton>
+        </div>
       </div>
-    </div>
+    </AppShell>
   );
 }
 
-export default function ChainReactorIPhoneApp() {
-  const [screen, setScreen] = useState("home");
-  const [rows, setRows] = useState(DEFAULT_ROWS);
-  const [cols, setCols] = useState(DEFAULT_COLS);
-  const [playerCount, setPlayerCount] = useState(2);
-  const [board, setBoard] = useState(() => makeBoard(DEFAULT_ROWS, DEFAULT_COLS));
-  const [activePlayer, setActivePlayer] = useState(0);
-  const [turns, setTurns] = useState(Array(8).fill(0));
-  const [busy, setBusy] = useState(false);
-  const [winner, setWinner] = useState(null);
-  const [flying, setFlying] = useState([]);
-  const [cellSize, setCellSize] = useState(48);
-  const boardRef = useRef(null);
-  const stopped = useRef(false);
+function SetupScreen({ playerCount, setPlayerCount, mode, setMode, onStart, onBack }) {
+  return (
+    <AppShell>
+      <header className="mb-8 flex items-center justify-between pt-2">
+        <button onClick={onBack} className="text-[14px] font-semibold text-[#8e8e93] active:scale-95">Back</button>
+        <p className="text-[13px] font-medium text-[#8e8e93]">Setup</p>
+        <div className="w-9" />
+      </header>
 
-  useEffect(() => {
-    runLogicTests();
+      <div className="flex flex-1 flex-col">
+        <div className="mb-8">
+          <h1 className="text-[42px] font-semibold tracking-[-.065em]">New Game</h1>
+          <p className="mt-2 text-[16px] leading-6 text-[#8e8e93]">Choose players and board size.</p>
+        </div>
 
-    const addMeta = (selector, attrs) => {
-      let el = document.querySelector(selector);
-      if (!el) {
-        el = document.createElement("meta");
-        document.head.appendChild(el);
-      }
-      Object.entries(attrs).forEach(([key, value]) => el.setAttribute(key, value));
-    };
+        <div className="space-y-5">
+          <div className="rounded-[2rem] bg-white/[.075] p-4 ring-1 ring-white/[.09] backdrop-blur-2xl">
+            <p className="mb-3 text-[13px] font-semibold text-[#8e8e93]">Players</p>
+            <div className="grid grid-cols-3 gap-2">
+              {[2, 3, 4].map((n) => (
+                <button
+                  key={n}
+                  onClick={() => setPlayerCount(n)}
+                  className={`h-12 rounded-full text-[15px] font-semibold transition active:scale-95 ${
+                    playerCount === n ? "bg-[#f5f5f7] text-[#050507]" : "bg-white/[.065] text-[#8e8e93] ring-1 ring-white/[.08]"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
 
-    addMeta("meta[name='viewport']", {
-      name: "viewport",
-      content: "width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, interactive-widget=resizes-content",
-    });
-    addMeta("meta[name='theme-color']", { name: "theme-color", content: UI.page });
-    addMeta("meta[name='apple-mobile-web-app-capable']", { name: "apple-mobile-web-app-capable", content: "yes" });
-    addMeta("meta[name='apple-mobile-web-app-title']", { name: "apple-mobile-web-app-title", content: "Chain Reactor" });
-    addMeta("meta[name='apple-mobile-web-app-status-bar-style']", { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" });
+          <div className="rounded-[2rem] bg-white/[.075] p-4 ring-1 ring-white/[.09] backdrop-blur-2xl">
+            <p className="mb-3 text-[13px] font-semibold text-[#8e8e93]">Board</p>
+            <div className="space-y-2">
+              {Object.entries(BOARD_SIZES).map(([key, value]) => (
+                <button
+                  key={key}
+                  onClick={() => setMode(key)}
+                  className={`flex h-13 w-full items-center justify-between rounded-[1.35rem] px-4 py-3 text-left transition active:scale-[.99] ${
+                    mode === key ? "bg-[#f5f5f7] text-[#050507]" : "bg-white/[.065] text-[#f5f5f7] ring-1 ring-white/[.08]"
+                  }`}
+                >
+                  <span className="text-[15px] font-semibold">{value.label}</span>
+                  <span className={mode === key ? "text-[13px] text-[#3a3a3c]" : "text-[13px] text-[#8e8e93]"}>
+                    {value.rows} × {value.cols}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
 
-    document.title = "Chain Reactor";
+          <div className="grid grid-cols-4 gap-2">
+            {PLAYERS.slice(0, playerCount).map((player) => (
+              <div key={player.name} className="rounded-[1.35rem] bg-white/[.06] px-2 py-3 text-center ring-1 ring-white/[.08]">
+                <div className="mx-auto mb-2 h-3 w-3 rounded-full" style={{ background: player.color }} />
+                <p className="text-[11px] font-semibold text-[#c7c7cc]">{player.name}</p>
+              </div>
+            ))}
+          </div>
+        </div>
 
-    const style = document.createElement("style");
-    style.textContent = `
-      :root { color-scheme: dark; background: ${UI.page}; font-family: "Manrope", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
-      * { box-sizing: border-box; }
-      html, body, #root { margin: 0; width: 100%; height: 100%; min-height: 100%; background: ${UI.page}; overflow: hidden; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
-      html, body { position: relative; touch-action: manipulation; }
-      body { min-height: 100dvh; height: 100dvh; }
-      button { font: inherit; }
-      h1, h2, h3 { font-family: "Space Grotesk", "Manrope", "Inter", -apple-system, BlinkMacSystemFont, system-ui, sans-serif; letter-spacing: -0.025em; }
-      @supports (height: 100svh) { body, #root { min-height: 100svh; height: 100svh; } }
-    `;
-    document.head.appendChild(style);
-    return () => style.remove();
-  }, []);
-
-  useEffect(() => {
-    const update = () => {
-      const first = boardRef.current?.querySelector("button[aria-label^='row']");
-      if (first) setCellSize(first.getBoundingClientRect().width || 48);
-    };
-    update();
-    window.addEventListener("resize", update);
-    const observer = boardRef.current ? new ResizeObserver(update) : null;
-    if (boardRef.current && observer) observer.observe(boardRef.current);
-    return () => {
-      window.removeEventListener("resize", update);
-      observer?.disconnect();
-    };
-  }, [rows, cols, screen]);
-
-  const players = useMemo(
-    () => COLORS.slice(0, playerCount).map((p, i) => ({ ...p, label: `Player ${i + 1}` })),
-    [playerCount]
+        <div className="mt-auto space-y-3 pb-4 pt-8">
+          <PrimaryButton onClick={onStart} className="w-full">Start Game</PrimaryButton>
+          <p className="text-center text-[11px] text-[#8e8e93]">Own or empty cells only. Critical mass explodes.</p>
+        </div>
+      </div>
+    </AppShell>
   );
+}
 
-  function reset(nextRows = rows, nextCols = cols, nextPlayers = playerCount) {
-    setRows(nextRows);
-    setCols(nextCols);
-    setPlayerCount(nextPlayers);
-    setBoard(makeBoard(nextRows, nextCols));
-    setActivePlayer(0);
-    setTurns(Array(8).fill(0));
+export default function ChainReactionGame() {
+  const [screen, setScreen] = useState("welcome");
+  const [mode, setMode] = useState("classic");
+  const [playerCount, setPlayerCount] = useState(2);
+  const [{ rows, cols }, setSize] = useState(BOARD_SIZES.classic);
+  const [board, setBoard] = useState(() => makeBoard(BOARD_SIZES.classic.rows, BOARD_SIZES.classic.cols));
+  const [currentPlayer, setCurrentPlayer] = useState(0);
+  const [started, setStarted] = useState(false);
+  const [alive, setAlive] = useState([0, 1]);
+  const [winner, setWinner] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [turns, setTurns] = useState(0);
+  const [message, setMessage] = useState("Tap any empty cell.");
+  const [showTests, setShowTests] = useState(false);
+  const [testResults] = useState(() => runLogicTests());
+  const boardRef = useRef(board);
+
+  useEffect(() => {
+    boardRef.current = board;
+  }, [board]);
+
+  const players = useMemo(() => PLAYERS.slice(0, playerCount), [playerCount]);
+  const current = players[currentPlayer] || players[0];
+  const testsPassed = testResults.every((result) => result.passed);
+
+  function reset(newMode = mode, newCount = playerCount, nextScreen = "game") {
+    const safeCount = Math.min(Math.max(newCount, 2), PLAYERS.length);
+    const size = BOARD_SIZES[newMode] || BOARD_SIZES.classic;
+    const fresh = makeBoard(size.rows, size.cols);
+    setMode(newMode);
+    setPlayerCount(safeCount);
+    setSize(size);
+    setBoard(fresh);
+    boardRef.current = fresh;
+    setCurrentPlayer(0);
+    setStarted(false);
+    setAlive(Array.from({ length: safeCount }, (_, i) => i));
     setWinner(null);
-    setFlying([]);
     setBusy(false);
-    stopped.current = false;
+    setTurns(0);
+    setMessage("Tap any empty cell.");
+    setScreen(nextScreen);
   }
 
-  function winnerFor(nextBoard, nextTurns) {
-    const mass = playerMass(nextBoard, playerCount);
-    const allPlayed = nextTurns.slice(0, playerCount).every((t) => t > 0);
-    if (!allPlayed) return null;
-    const alive = mass.map((m, i) => ({ m, i })).filter((x) => x.m > 0);
-    return alive.length === 1 ? alive[0].i : null;
+  function startGame() {
+    reset(mode, playerCount, "game");
   }
 
-  function nextPlayer(from, nextBoard, nextTurns) {
-    const mass = playerMass(nextBoard, playerCount);
-    for (let step = 1; step <= playerCount; step += 1) {
-      const candidate = (from + step) % playerCount;
-      if (!(nextTurns[candidate] > 0 && mass[candidate] === 0)) return candidate;
+  function nextAlivePlayer(from, aliveList, playerTotal = playerCount) {
+    for (let step = 1; step <= playerTotal; step += 1) {
+      const next = (from + step) % playerTotal;
+      if (aliveList.includes(next)) return next;
     }
     return from;
   }
 
-  async function resolve(startBoard, owner, nextTurns) {
-    let current = copyBoard(startBoard);
-    for (let loop = 0; loop < 8000; loop += 1) {
-      const w = winnerFor(current, nextTurns);
-      if (w !== null) {
-        stopped.current = true;
-        setWinner(w);
-        setFlying([]);
-        return current;
+  async function resolveReactions(startBoard, player, canEndGame = false) {
+    let working = cloneBoard(startBoard);
+    let guard = 0;
+
+    while (guard < 1000) {
+      guard += 1;
+      const exploding = [];
+      for (let r = 0; r < rows; r += 1) {
+        for (let c = 0; c < cols; c += 1) {
+          if (working[r][c].count >= working[r][c].cap) exploding.push([r, c]);
+        }
       }
 
-      const critical = findCritical(current, rows, cols);
-      if (critical.length === 0) return current;
+      if (!exploding.length) break;
+      setMessage("Chain reaction");
 
-      const movers = [];
-      for (const [r, c] of critical) {
-        neighbors(r, c, rows, cols).forEach(([nr, nc], i) => {
-          movers.push({ id: `${loop}-${r}-${c}-${nr}-${nc}-${i}`, color: COLORS[owner].hex, from: { r, c }, to: { r: nr, c: nc } });
-        });
+      for (const [r, c] of exploding) {
+        working[r][c] = { ...working[r][c], pulse: working[r][c].pulse + 1 };
+      }
+      setBoard(cloneBoard(working));
+      await sleep(115);
+
+      for (const [r, c] of exploding) {
+        if (working[r][c].count < working[r][c].cap) continue;
+        working[r][c].count -= working[r][c].cap;
+        if (working[r][c].count <= 0) {
+          working[r][c].count = 0;
+          working[r][c].owner = null;
+        }
+        for (const [nr, nc] of getNeighbors(r, c, rows, cols)) {
+          working[nr][nc].count += 1;
+          working[nr][nc].owner = player;
+          working[nr][nc].pulse += 1;
+        }
       }
 
-      setFlying(movers);
-      await wait(TRAVEL_MS);
-      if (stopped.current) return current;
-      current = explode(current, critical, owner, rows, cols);
-      setFlying([]);
-      setBoard(copyBoard(current));
-      await wait(35);
+      setBoard(cloneBoard(working));
+
+      if (canEndGame) {
+        const present = activePlayersOnBoard(working);
+        if (present.size <= 1) {
+          break;
+        }
+      }
+
+      await sleep(145);
     }
-    return current;
+
+    return working;
   }
 
-  async function play(r, c) {
+  async function play(row, col) {
     if (busy || winner !== null) return;
-    const cell = board[r][c];
-    if (!canPlayCell(cell, activePlayer, false)) return;
+    const cell = boardRef.current[row][col];
+    if (cell.owner !== null && cell.owner !== currentPlayer) {
+      setMessage("Pick your own cell or an empty one.");
+      return;
+    }
 
     setBusy(true);
-    stopped.current = false;
-    const nextTurns = [...turns];
-    nextTurns[activePlayer] += 1;
-    setTurns(nextTurns);
+    setStarted(true);
+    
 
-    const next = copyBoard(board);
-    next[r][c] = { owner: activePlayer, count: next[r][c].count + 1 };
-    setBoard(next);
+    const nextBoard = cloneBoard(boardRef.current);
+    nextBoard[row][col].count += 1;
+    nextBoard[row][col].owner = currentPlayer;
+    nextBoard[row][col].pulse += 1;
+    setBoard(nextBoard);
+    await sleep(90);
 
-    const resolved = await resolve(next, activePlayer, nextTurns);
-    if (!stopped.current) {
-      const w = winnerFor(resolved, nextTurns);
-      if (w !== null) setWinner(w);
-      else setActivePlayer(nextPlayer(activePlayer, resolved, nextTurns));
+    const settled = await resolveReactions(nextBoard, currentPlayer, turns + 1 >= players.length);
+    boardRef.current = settled;
+    setBoard(settled);
+
+    const newTurns = turns + 1;
+    setTurns(newTurns);
+
+    let newAlive = Array.from({ length: players.length }, (_, i) => i);
+    if (newTurns >= players.length) {
+      const present = activePlayersOnBoard(settled);
+      newAlive = newAlive.filter((p) => present.has(p));
     }
+    setAlive(newAlive);
+
+    const present = activePlayersOnBoard(settled);
+    if ((started || newTurns >= players.length) && present.size === 1 && newTurns >= players.length) {
+      const only = [...present][0];
+      setWinner(only);
+      setMessage(`${players[only].name} wins`);
+      setBusy(false);
+      return;
+    }
+
+    const next = nextAlivePlayer(currentPlayer, newAlive, players.length);
+    setCurrentPlayer(next);
+    setMessage(`${players[next].name}'s turn`);
     setBusy(false);
   }
 
-  const pageBackground = {
-    backgroundColor: UI.page,
-    backgroundImage: `radial-gradient(circle at 50% -10%, rgba(120,140,255,0.12), transparent 36%), linear-gradient(180deg, ${UI.pageTop} 0%, ${UI.page} 60%, #04050a 100%)`,
-  };
+  if (screen === "welcome") {
+    return <WelcomeScreen onContinue={() => setScreen("setup")} />;
+  }
 
-  if (screen !== "game") {
+  if (screen === "setup") {
     return (
-      <main
-        className="relative h-[100svh] w-screen overflow-hidden px-5 text-white"
-        style={{ ...pageBackground, paddingTop: "calc(env(safe-area-inset-top) + 18px)", paddingBottom: "calc(env(safe-area-inset-bottom) + 18px)" }}
-      >
-        <section className="relative mx-auto flex h-full max-w-md flex-col justify-center gap-6">
-          <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="text-center">
-            <div className="mx-auto mb-7 flex h-16 w-16 items-center justify-center rounded-[1.2rem]" style={{ background: "#0f1420", boxShadow: "0 16px 36px rgba(0,0,0,0.4)", border: `1px solid ${UI.ring}` }}>
-              <div className="relative h-11 w-11">
-                <span className="absolute left-0 top-4 h-4 w-4 rounded-full" style={{ background: COLORS[0].hex, boxShadow: "0 0 12px rgba(255,79,115,0.45)" }} />
-                <span className="absolute right-0 top-1 h-4 w-4 rounded-full" style={{ background: COLORS[1].hex, boxShadow: "0 0 12px rgba(77,184,255,0.45)" }} />
-                <span className="absolute bottom-1 left-1/2 h-4 w-4 -translate-x-1/2 rounded-full" style={{ background: COLORS[2].hex, boxShadow: "0 0 12px rgba(155,229,100,0.45)" }} />
-              </div>
-            </div>
-            <h1 className="mt-2 text-4xl font-bold tracking-[-0.035em]" style={{ color: UI.text, fontFamily: '"Space Grotesk", "Manrope", "Inter", -apple-system, system-ui, sans-serif' }}>Chain Reactor</h1>
-          </motion.div>
-
-          <div className="rounded-[1.6rem] p-4" style={{ background: UI.panel, boxShadow: "0 18px 40px rgba(0,0,0,0.5)", border: `1px solid ${UI.ring}` }}>
-            <div className="grid gap-3">
-              <Stepper label="Players" value={playerCount} min={2} max={8} onChange={(v) => reset(rows, cols, v)} />
-              <div className="grid grid-cols-2 gap-3">
-                <Button kind="secondary" onClick={() => reset(9, 6, playerCount)}>Phone</Button>
-                <Button kind="secondary" onClick={() => reset(10, 8, playerCount)}>Tablet</Button>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <Stepper label="Rows" value={rows} min={5} max={14} onChange={(v) => reset(v, cols, playerCount)} />
-                <Stepper label="Columns" value={cols} min={4} max={10} onChange={(v) => reset(rows, v, playerCount)} />
-              </div>
-              <Button className="h-14 text-base font-semibold" onClick={() => { reset(rows, cols, playerCount); setScreen("game"); }}>
-                Start Game
-              </Button>
-            </div>
-          </div>
-        </section>
-      </main>
+      <SetupScreen
+        playerCount={playerCount}
+        setPlayerCount={setPlayerCount}
+        mode={mode}
+        setMode={setMode}
+        onStart={startGame}
+        onBack={() => setScreen("welcome")}
+      />
     );
   }
 
   return (
-    <main
-      className="relative h-[100svh] w-screen overflow-hidden px-3 text-white"
-      style={{ ...pageBackground, paddingTop: "calc(env(safe-area-inset-top) + 8px)", paddingBottom: "calc(env(safe-area-inset-bottom) + 8px)" }}
-    >
-      <div className="relative mx-auto flex h-full max-w-md flex-col gap-3">
-        <header className="grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-full p-2" style={{ background: "rgba(12,15,23,0.9)", boxShadow: "0 10px 26px rgba(0,0,0,0.4)", border: `1px solid ${UI.ring}` }}>
-          <Button kind="secondary" className="px-3 py-2" disabled={busy} onClick={() => setScreen("home")}>Setup</Button>
-          <div className="min-w-0 text-center">
-            <div className="text-[9px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(255,255,255,0.25)" }}>Turn</div>
-            <div className="truncate text-lg font-semibold tracking-[-0.035em]" style={{ color: players[activePlayer].hex }}>{players[activePlayer].label}</div>
-          </div>
-          <Button
-            kind="ghost"
-            className="flex h-12 w-12 items-center justify-center rounded-full p-0"
-            disabled={busy}
+    <AppShell>
+      <header className="mb-5 flex items-center justify-between">
+        <div>
+          <p className="text-[12px] font-medium tracking-tight text-[#8e8e93]">Chain Reactor</p>
+          <h1 className="text-[34px] font-semibold tracking-[-.055em] text-[#f5f5f7]">Game</h1>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setScreen("setup")}
+            className="h-10 rounded-full bg-white/[.09] px-4 text-[13px] font-semibold text-[#f5f5f7] ring-1 ring-white/[.10] backdrop-blur-xl active:scale-95"
+          >
+            Setup
+          </button>
+          <button
             onClick={() => reset()}
+            className="grid h-10 w-10 place-items-center rounded-full bg-white/[.09] text-[#f5f5f7] shadow-[0_18px_50px_rgba(0,0,0,.35)] ring-1 ring-white/[.10] backdrop-blur-xl active:scale-95"
             aria-label="Reset game"
-            style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${UI.ring}` }}
           >
-            <SvgIcon type="refresh" size={24} />
-          </Button>
-        </header>
+            <IconReset className="h-4 w-4" />
+          </button>
+        </div>
+      </header>
 
-        <section className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
-          <div
-            ref={boardRef}
-            className="relative grid gap-2.5 rounded-[1.4rem] p-2.5"
-            style={{
-              background: UI.panel,
-              boxShadow: "0 18px 40px rgba(0,0,0,0.5)",
-              border: `1px solid ${UI.ring}`,
-              gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-              width: `min(96vw, 430px, calc((100dvh - 7.5rem) * ${cols} / ${rows}))`,
-            }}
-          >
-            {board.map((row, r) =>
-              row.map((cell, c) => (
-                <Cell
-                  key={`${r}-${c}`}
-                  cell={cell}
-                  r={r}
-                  c={c}
-                  rows={rows}
-                  cols={cols}
-                  activePlayer={activePlayer}
-                  disabled={busy || winner !== null}
-                  onTap={() => play(r, c)}
-                  cellSize={cellSize}
-                />
-              ))
-            )}
-            <AnimatePresence>
-              {flying.map((orb) => (
-                <FlyingOrb key={orb.id} orb={orb} rows={rows} cols={cols} cellSize={cellSize} />
-              ))}
-            </AnimatePresence>
+      <div className="mb-4 rounded-[2rem] bg-white/[.075] p-3 shadow-[0_22px_70px_rgba(0,0,0,.42)] ring-1 ring-white/[.10] backdrop-blur-2xl">
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: current.color }} />
+              <p className="truncate text-[17px] font-semibold tracking-[-.025em]">
+                {winner === null ? current.name : `${players[winner].name} wins`}
+              </p>
+            </div>
+            <p className="mt-0.5 truncate text-[13px] text-[#8e8e93]">{message}</p>
           </div>
-        </section>
+          <div className="rounded-full bg-white/[.08] px-3 py-1.5 text-[12px] font-semibold text-[#c7c7cc]">
+            {alive.length}/{players.length}
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-4 flex justify-center gap-2">
+        {players.map((p, i) => (
+          <div
+            key={p.name}
+            className={`flex items-center gap-2 rounded-full bg-white/[.065] px-3 py-2 ring-1 ring-white/[.08] transition ${
+              alive.includes(i) ? "opacity-100" : "opacity-35 grayscale"
+            }`}
+          >
+            <span className="h-2.5 w-2.5 rounded-full" style={{ background: p.color }} />
+            <span className="text-[12px] font-semibold text-[#c7c7cc]">{p.name}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="relative flex flex-1 items-center justify-center pb-3">
+        <div
+          className="grid w-full touch-manipulation select-none gap-[7px] rounded-[2.2rem] bg-white/[.075] p-[10px] shadow-[0_28px_90px_rgba(0,0,0,.48)] ring-1 ring-white/[.10] backdrop-blur-2xl"
+          style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+        >
+          {board.map((row, r) =>
+            row.map((cell, c) => {
+              const owner = cell.owner !== null ? players[cell.owner] : null;
+              const nearCritical = cell.count === cell.cap - 1 && cell.count > 0;
+              return (
+                <motion.button
+                  key={`${r}-${c}`}
+                  onClick={() => play(r, c)}
+                  disabled={busy || winner !== null}
+                  aria-label={`Row ${r + 1}, column ${c + 1}, ${cell.count} of ${cell.cap} orbs`}
+                  className="relative overflow-hidden rounded-[1.05rem] bg-[#111114] ring-1 ring-white/[.075] transition disabled:opacity-90 active:scale-[.96]"
+                  style={{
+                    aspectRatio: "1 / 1",
+                    background: owner ? `linear-gradient(180deg, rgba(255,255,255,.09), ${owner.soft})` : "#111114",
+                  }}
+                  animate={nearCritical ? { y: [0, -1, 0], scale: [1, 1.015, 1] } : { y: 0, scale: 1 }}
+                  transition={nearCritical ? { repeat: Infinity, duration: 1.2 } : { duration: 0.18 }}
+                >
+                  {owner && (
+                    <motion.span
+                      key={cell.pulse}
+                      className="absolute inset-0 rounded-[1.05rem]"
+                      initial={{ opacity: 0.24, scale: 0.5 }}
+                      animate={{ opacity: 0, scale: 1.22 }}
+                      transition={{ duration: 0.42 }}
+                      style={{ background: owner.color }}
+                    />
+                  )}
+                  <OrbCluster count={cell.count} color={owner?.color} />
+                </motion.button>
+              );
+            })
+          )}
+        </div>
 
         <AnimatePresence>
           {winner !== null && (
             <motion.div
-              initial={{ opacity: 0, y: 18, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 18, scale: 0.95 }}
-              className="fixed inset-x-4 top-1/2 z-50 mx-auto max-w-sm -translate-y-1/2 rounded-[1.6rem] p-5 text-center backdrop-blur-xl"
-              style={{ background: UI.panel, boxShadow: "0 18px 40px rgba(0,0,0,0.55)", border: `1px solid ${UI.ring}` }}
+              className="absolute inset-x-5 top-1/2 rounded-[2.2rem] bg-[#1c1c1e]/90 p-6 text-center shadow-[0_30px_90px_rgba(0,0,0,.55)] ring-1 ring-white/[.10] backdrop-blur-2xl"
+              initial={{ opacity: 0, scale: 0.96, y: "-43%" }}
+              animate={{ opacity: 1, scale: 1, y: "-50%" }}
+              exit={{ opacity: 0, scale: 0.96 }}
             >
-              <div className="text-4xl">👑</div>
-              <div className="mt-2 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: UI.muted }}>Winner</div>
-              <div className="mt-1 text-2xl font-semibold tracking-[-0.035em]" style={{ color: players[winner].hex }}>{players[winner].label}</div>
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                <Button kind="secondary" onClick={() => setScreen("home")}>Setup</Button>
-                <Button onClick={() => reset()}>Play again</Button>
-              </div>
+              <div className="mx-auto mb-4 h-14 w-14 rounded-full" style={{ background: players[winner].color }} />
+              <h2 className="text-[30px] font-semibold tracking-[-.05em]">{players[winner].name} wins</h2>
+              <p className="mt-1 text-[14px] text-[#8e8e93]">Board captured.</p>
+              <button
+                onClick={() => reset()}
+                className="mt-5 h-11 rounded-full bg-[#f5f5f7] px-6 text-[15px] font-semibold text-[#050507] active:scale-95"
+              >
+                New Game
+              </button>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
-    </main>
+
+      <footer className="text-center">
+        <p className="text-[11px] text-[#8e8e93]">Own or empty cells only. Critical mass explodes.</p>
+        <button
+          onClick={() => setShowTests((value) => !value)}
+          className="mt-2 rounded-full px-3 py-1 text-[10px] font-semibold text-[#8e8e93]"
+        >
+          Tests {testResults.filter((result) => result.passed).length}/{testResults.length} {testsPassed ? "passed" : "failed"}
+        </button>
+        {showTests && (
+          <div className="mt-2 rounded-3xl bg-white/[.07] p-3 text-left text-[10px] text-[#c7c7cc] ring-1 ring-white/[.08]">
+            {testResults.map((result) => (
+              <div key={result.name} className="flex justify-between gap-3 py-0.5">
+                <span>{result.name}</span>
+                <span>{result.passed ? "pass" : result.error}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </footer>
+    </AppShell>
   );
 }
