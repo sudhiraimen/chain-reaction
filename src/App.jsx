@@ -515,19 +515,23 @@ function GameScreen({
   onPlay,
   onReset,
 }) {
+  const [confirmReset, setConfirmReset] = useState(false);
+
   return (
     <AppShell>
       <header className="mb-3 flex items-center justify-between">
         <button
           onClick={onBack}
-          className="h-10 rounded-full bg-white/[.09] px-4 text-[13px] font-semibold text-[#f5f5f7] ring-1 ring-white/[.10] backdrop-blur-xl active:scale-95"
+          className="flex h-10 items-center gap-1 rounded-full bg-white/[.09] pl-3 pr-4 text-[15px] font-semibold text-[#f5f5f7] ring-1 ring-white/[.10] backdrop-blur-xl active:scale-95"
+          aria-label="Back to setup"
         >
-          Back
+          <span className="text-[22px] leading-none">‹</span>
+          <span>Back</span>
         </button>
         <div />
       </header>
 
-      <div className="relative w-full pb-3">
+      <div className="relative flex flex-1 w-full items-center pb-3">
         <div
           className="grid w-full touch-manipulation select-none gap-[7px] rounded-[2.2rem] bg-white/[.075] p-[10px] shadow-[0_28px_90px_rgba(0,0,0,.48)] ring-1 ring-white/[.10] backdrop-blur-2xl"
           style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
@@ -568,7 +572,7 @@ function GameScreen({
         </div>
       </div>
 
-      <div className="mt-auto space-y-3 pb-2">
+      <div className="space-y-3 pb-2">
         <div className="rounded-[2rem] bg-white/[.075] p-3 shadow-[0_22px_70px_rgba(0,0,0,.42)] ring-1 ring-white/[.10] backdrop-blur-2xl">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
@@ -580,9 +584,12 @@ function GameScreen({
               </div>
               <p className="mt-0.5 truncate text-[13px] text-[#8e8e93]">{message}</p>
             </div>
-            <div className="rounded-full bg-white/[.08] px-3 py-1.5 text-[12px] font-semibold text-[#c7c7cc]">
-              {alive.length}/{players.length}
-            </div>
+            <button
+              onClick={() => setConfirmReset(true)}
+              className="rounded-full bg-white/[.08] px-3 py-1.5 text-[12px] font-semibold text-[#c7c7cc] ring-1 ring-white/[.08] active:scale-95"
+            >
+              Reset
+            </button>
           </div>
         </div>
 
@@ -604,6 +611,34 @@ function GameScreen({
       </div>
 
       <AnimatePresence>
+        {confirmReset && (
+          <motion.div
+            className="absolute inset-x-5 top-1/2 rounded-[2.2rem] bg-[#1c1c1e]/95 p-6 text-center shadow-[0_30px_90px_rgba(0,0,0,.55)] ring-1 ring-white/[.10] backdrop-blur-2xl"
+            initial={{ opacity: 0, scale: 0.96, y: "-43%" }}
+            animate={{ opacity: 1, scale: 1, y: "-50%" }}
+            exit={{ opacity: 0, scale: 0.96 }}
+          >
+            <h2 className="text-[24px] font-semibold tracking-[-.04em]">Reset game?</h2>
+            <p className="mt-2 text-[14px] text-[#8e8e93]">This will clear the current board.</p>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setConfirmReset(false)}
+                className="h-11 rounded-full bg-white/[.08] text-[15px] font-semibold text-[#f5f5f7] ring-1 ring-white/[.08] active:scale-95"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setConfirmReset(false);
+                  onReset();
+                }}
+                className="h-11 rounded-full bg-[#f5f5f7] text-[15px] font-semibold text-[#050507] active:scale-95"
+              >
+                Reset
+              </button>
+            </div>
+          </motion.div>
+        )}
         {winner !== null && (
           <motion.div
             className="absolute inset-x-5 top-1/2 rounded-[2.2rem] bg-[#1c1c1e]/90 p-6 text-center shadow-[0_30px_90px_rgba(0,0,0,.55)] ring-1 ring-white/[.10] backdrop-blur-2xl"
