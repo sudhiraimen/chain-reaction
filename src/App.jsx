@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const PLAYER_PALETTE = [
@@ -103,11 +103,15 @@ function Icon({ type, className = "h-4 w-4" }) {
   return null;
 }
 
-function OrbCluster({ color, total, instability }) {
+function OrbCluster({ color, total, instability, cellSize }) {
   const groupSize = Math.min(total, 3);
   const spinDuration = instability > 0.85 ? 1.6 : instability > 0.45 ? 2.2 : 3.2;
-  const radius = groupSize === 1 ? 0 : groupSize === 2 ? 6 : 8;
-  const orbSize = groupSize === 1 ? 14 : 11;
+
+  // True percentage-based sizing: the visible cluster targets ~40% of the actual cell size.
+  const safeCellSize = cellSize || 48;
+  const clusterTarget = safeCellSize * 0.4;
+  const orbSize = groupSize === 1 ? clusterTarget : clusterTarget * 0.72;
+  const radius = groupSize === 1 ? 0 : groupSize === 2 ? clusterTarget * 0.18 : clusterTarget * 0.24;
   const isUnstable = instability > 0.6;
   const isCritical = instability > 0.85;
   const points = Array.from({ length: groupSize }).map((_, index) => {
@@ -123,7 +127,7 @@ function OrbCluster({ color, total, instability }) {
   );
 }
 
-function Cell({ cell, row, col, rows, cols, activePlayer, onTap, disabled }) {
+function Cell({ cell, row, col, rows, cols, activePlayer, onTap, disabled, cellSize }) {
   const owner = cell.owner !== null ? PLAYER_PALETTE[cell.owner] : null;
   const mass = criticalMass(row, col, rows, cols);
   const isPlayable = !disabled && (cell.owner === null || cell.owner === activePlayer);
@@ -131,17 +135,36 @@ function Cell({ cell, row, col, rows, cols, activePlayer, onTap, disabled }) {
   return (
     <motion.button type="button" aria-label={`Cell ${row + 1}, ${col + 1}`} onClick={onTap} disabled={!isPlayable} whileTap={isPlayable ? { scale: 0.97 } : undefined} className={`relative aspect-square rounded-xl border border-white/10 bg-slate-950/70 shadow-inner transition ${isPlayable ? "hover:border-white/25 active:scale-95" : "cursor-not-allowed opacity-50"}`}>
       <span className="absolute inset-1 rounded-lg border border-white/5" />
-      <AnimatePresence>{owner && cell.count > 0 && <OrbCluster key={`${row}-${col}-${cell.owner}-${cell.count}`} color={owner.hex} total={cell.count} instability={instability} />}</AnimatePresence>
+      <AnimatePresence>{owner && cell.count > 0 && <OrbCluster key={`${row}-${col}-${cell.owner}-${cell.count}`} color={owner.hex} total={cell.count} instability={instability} cellSize={cellSize} />}</AnimatePresence>
     </motion.button>
   );
 }
 
-function FlyingOrb({ orb, rows, cols }) {
+function FlyingOrb({ orb, rows, cols, cellSize }) {
   const fromLeft = `${((orb.from.c + 0.5) / cols) * 100}%`;
   const fromTop = `${((orb.from.r + 0.5) / rows) * 100}%`;
   const toLeft = `${((orb.to.c + 0.5) / cols) * 100}%`;
   const toTop = `${((orb.to.r + 0.5) / rows) * 100}%`;
-  return <motion.span className="pointer-events-none absolute z-20 h-3 w-3 rounded-full sm:h-3.5 sm:w-3.5" style={{ background: orb.color, left: fromLeft, top: fromTop, marginLeft: -6, marginTop: -6 }} initial={{ left: fromLeft, top: fromTop, opacity: 1 }} animate={{ left: toLeft, top: toTop, opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: TRAVEL_MS / 1000, ease: "easeInOut" }} />;
+  const orbSize = (cellSize || 48) * 0.28;
+
+  return (
+    <motion.span
+      className="pointer-events-none absolute z-20 rounded-full shadow-[0_0_14px_rgba(255,255,255,.25)]"
+      style={{
+        background: orb.color,
+        width: orbSize,
+        height: orbSize,
+        left: fromLeft,
+        top: fromTop,
+        marginLeft: -orbSize / 2,
+        marginTop: -orbSize / 2,
+      }}
+      initial={{ left: fromLeft, top: fromTop, opacity: 1, scale: 1 }}
+      animate={{ left: toLeft, top: toTop, opacity: 1, scale: [1, 1.08, 1] }}
+      exit={{ opacity: 0, scale: 0.85 }}
+      transition={{ duration: TRAVEL_MS / 1000, ease: "easeInOut" }}
+    />
+  );
 }
 
 function StepperButton({ label, onClick }) {
@@ -182,22 +205,56 @@ export default function ChainReactorModern() {
       document.head.appendChild(style);
     }
     style.textContent = `
+      :root {
+        background-color: #020617;
+        background-image:
+          radial-gradient(circle at top left, rgba(14,165,233,.22), transparent 38%),
+          radial-gradient(circle at bottom right, rgba(244,63,94,.18), transparent 42%);
+        background-attachment: fixed;
+      }
+
       html,
       body,
       #root {
-        min-height: 100%;
+        height: 100%;
         margin: 0;
-        background: #020617;
+        overflow: hidden;
         overscroll-behavior: none;
+        touch-action: manipulation;
+        background-color: #020617;
+        background-image:
+          radial-gradient(circle at top left, rgba(14,165,233,.22), transparent 38%),
+          radial-gradient(circle at bottom right, rgba(244,63,94,.18), transparent 42%);
+        background-attachment: fixed;
       }
+
       body {
-        min-height: 100vh;
-        min-height: 100dvh;
+        height: 100vh;
+        height: 100dvh;
       }
+
+      main {
+        height: 100dvh;
+        overflow: hidden;
+        background: transparent !important;
+      }
+
+      @supports (height: 100svh) {
+        body,
+        main {
+          height: 100svh;
+        }
+      }
+
       @supports (-webkit-touch-callout: none) {
         html,
-        body {
+        body,
+        #root {
           background-color: #020617;
+          background-image:
+            radial-gradient(circle at top left, rgba(14,165,233,.22), transparent 38%),
+            radial-gradient(circle at bottom right, rgba(244,63,94,.18), transparent 42%);
+          background-attachment: fixed;
         }
       }
     `;
@@ -218,7 +275,31 @@ export default function ChainReactorModern() {
   const [showRules, setShowRules] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [flyingOrbs, setFlyingOrbs] = useState([]);
+  const [cellSize, setCellSize] = useState(48);
+  const boardRef = useRef(null);
   const gameOverRef = useRef(false);
+
+  useEffect(() => {
+    if (!boardRef.current) return;
+
+    const updateCellSize = () => {
+      const firstCell = boardRef.current?.querySelector("button[aria-label^='Cell']");
+      if (!firstCell) return;
+      const rect = firstCell.getBoundingClientRect();
+      if (rect.width > 0) setCellSize(rect.width);
+    };
+
+    updateCellSize();
+
+    const observer = new ResizeObserver(updateCellSize);
+    observer.observe(boardRef.current);
+    window.addEventListener("resize", updateCellSize);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateCellSize);
+    };
+  }, [rows, cols, screen]);
 
   const players = useMemo(() => PLAYER_PALETTE.slice(0, playerCount).map((player, index) => ({ ...player, displayName: playerNames[index]?.trim() || `Player ${index + 1}` })), [playerCount, playerNames]);
 
@@ -370,7 +451,7 @@ export default function ChainReactorModern() {
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,.18),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(244,63,94,.15),transparent_40%)]" />
       <div className="relative mx-auto flex min-h-[calc(100vh-1.5rem)] max-w-4xl flex-col gap-3">
         <header className="flex items-center justify-between rounded-3xl border border-white/10 bg-white/5 px-3 py-2 shadow-2xl backdrop-blur sm:px-4"><Button size="sm" variant="secondary" onClick={() => setScreen("setup")} disabled={busy}><Icon type="back" className="mr-1 h-4 w-4" /> Setup</Button><div className="text-center"><div className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">Turn</div><div className={`text-lg font-black sm:text-2xl ${players[activePlayer].text}`}>{players[activePlayer].displayName}</div></div><Button size="sm" variant="secondary" onClick={() => resetMatch()} disabled={busy} aria-label="Reset game"><Icon type="reset" className="h-4 w-4" /></Button></header>
-        <section className="flex flex-1 items-center justify-center"><div className="relative grid w-full max-w-[min(96vw,680px)] gap-1.5 rounded-3xl border border-white/10 bg-slate-900/70 p-2 shadow-2xl backdrop-blur sm:gap-2 sm:p-3" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>{board.map((row, r) => row.map((cell, c) => <Cell key={`${r}-${c}`} cell={cell} row={r} col={c} rows={rows} cols={cols} activePlayer={activePlayer} disabled={busy || winner !== null} onTap={() => placeOrb(r, c)} />))}<AnimatePresence>{flyingOrbs.map((orb) => <FlyingOrb key={orb.id} orb={orb} rows={rows} cols={cols} />)}</AnimatePresence></div></section>
+        <section className="flex flex-1 items-center justify-center"><div ref={boardRef} className="relative grid w-full max-w-[min(96vw,680px)] gap-1.5 rounded-3xl border border-white/10 bg-slate-900/70 p-2 shadow-2xl backdrop-blur sm:gap-2 sm:p-3" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>{board.map((row, r) => row.map((cell, c) => <Cell key={`${r}-${c}`} cell={cell} row={r} col={c} rows={rows} cols={cols} activePlayer={activePlayer} disabled={busy || winner !== null} onTap={() => placeOrb(r, c)} cellSize={cellSize} />))}<AnimatePresence>{flyingOrbs.map((orb) => <FlyingOrb key={orb.id} orb={orb} rows={rows} cols={cols} cellSize={cellSize} />)}</AnimatePresence></div></section>
         <AnimatePresence>{winner !== null && <motion.div initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.95 }} className="fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-3xl border border-white/10 bg-slate-950/90 p-5 text-center shadow-2xl backdrop-blur"><Icon type="crown" className={`mx-auto mb-2 h-9 w-9 ${players[winner].text}`} /><div className="text-xs uppercase tracking-widest text-white/50">Winner</div><div className={`text-3xl font-black ${players[winner].text}`}>{players[winner].displayName}</div><div className="mt-4 grid grid-cols-2 gap-2"><Button variant="secondary" onClick={() => setScreen("setup")}>Setup</Button><Button onClick={() => resetMatch()}>Play again</Button></div></motion.div>}</AnimatePresence>
       </div>
     </main>
