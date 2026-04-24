@@ -354,6 +354,7 @@ export default function ChainReactorIPhoneApp() {
     const style = document.createElement("style");
     style.textContent = `
       :root { color-scheme: dark; background: ${UI.page}; font-family: "Manrope", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+      * { box-sizing: border-box; }
       html, body, #root { margin: 0; width: 100%; height: 100%; min-height: 100%; background: ${UI.page}; overflow: hidden; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
       html, body { position: relative; touch-action: manipulation; }
       body { min-height: 100dvh; height: 100dvh; }
@@ -479,10 +480,10 @@ export default function ChainReactorIPhoneApp() {
   if (screen !== "game") {
     return (
       <main
-        className="absolute inset-0 h-[100dvh] w-screen overflow-hidden px-5 text-white"
+        className="relative h-[100svh] w-screen overflow-hidden px-5 text-white"
         style={{ ...pageBackground, paddingTop: "calc(env(safe-area-inset-top) + 18px)", paddingBottom: "calc(env(safe-area-inset-bottom) + 18px)" }}
       >
-        <section className="relative mx-auto flex h-[calc(100dvh-36px)] max-w-md flex-col justify-center gap-6">
+        <section className="relative mx-auto flex h-full max-w-md flex-col justify-center gap-6">
           <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="text-center">
             <div className="mx-auto mb-7 flex h-16 w-16 items-center justify-center rounded-[1.2rem]" style={{ background: "#0f1420", boxShadow: "0 16px 36px rgba(0,0,0,0.4)", border: `1px solid ${UI.ring}` }}>
               <div className="relative h-11 w-11">
@@ -517,10 +518,10 @@ export default function ChainReactorIPhoneApp() {
 
   return (
     <main
-      className="absolute inset-0 h-[100dvh] w-screen overflow-hidden px-3 text-white"
+      className="relative h-[100svh] w-screen overflow-hidden px-3 text-white"
       style={{ ...pageBackground, paddingTop: "calc(env(safe-area-inset-top) + 8px)", paddingBottom: "calc(env(safe-area-inset-bottom) + 8px)" }}
     >
-      <div className="relative mx-auto flex h-[calc(100dvh-16px)] max-w-md flex-col gap-3">
+      <div className="relative mx-auto flex h-full max-w-md flex-col gap-3">
         <header className="grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-full p-2" style={{ background: "rgba(12,15,23,0.9)", boxShadow: "0 10px 26px rgba(0,0,0,0.4)", border: `1px solid ${UI.ring}` }}>
           <Button kind="secondary" className="px-3 py-2" disabled={busy} onClick={() => setScreen("home")}>Setup</Button>
           <div className="min-w-0 text-center">
