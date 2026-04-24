@@ -196,6 +196,10 @@ export default function ChainReactorModern() {
       name: "apple-mobile-web-app-status-bar-style",
       content: "black-translucent",
     });
+    ensureMeta("meta[name='mobile-web-app-capable']", {
+      name: "mobile-web-app-capable",
+      content: "yes",
+    });
 
     const styleId = "chain-reaction-pwa-safe-area-style";
     let style = document.getElementById(styleId);
@@ -216,6 +220,7 @@ export default function ChainReactorModern() {
       html,
       body,
       #root {
+        width: 100%;
         height: 100%;
         margin: 0;
         overflow: hidden;
@@ -229,18 +234,39 @@ export default function ChainReactorModern() {
       }
 
       body {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
         height: 100vh;
         height: 100dvh;
       }
 
+      #root {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100dvh;
+      }
+
       main {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
         height: 100dvh;
         overflow: hidden;
         background: transparent !important;
       }
 
+      main.setup-scroll {
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-y: contain;
+      }
+
       @supports (height: 100svh) {
         body,
+        #root,
         main {
           height: 100svh;
         }
@@ -408,7 +434,7 @@ export default function ChainReactorModern() {
 
   if (screen === "welcome") {
     return (
-      <main className="min-h-screen overflow-hidden bg-slate-950 px-4 py-5 text-white sm:px-6">
+      <main className="setup-scroll h-[100dvh] overflow-y-auto overflow-x-hidden bg-slate-950 px-4 text-white sm:px-6" style={{ paddingTop: "calc(env(safe-area-inset-top) + 1rem)", paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)", WebkitOverflowScrolling: "touch" }}>
         <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,.22),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(244,63,94,.18),transparent_42%)]" />
         <div className="relative mx-auto flex min-h-[calc(100vh-2.5rem)] max-w-xl items-center justify-center">
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="w-full text-center">
@@ -425,7 +451,7 @@ export default function ChainReactorModern() {
 
   if (screen === "setup") {
     return (
-      <main className="min-h-screen overflow-hidden bg-slate-950 px-4 py-5 text-white sm:px-6">
+      <main className="setup-scroll h-[100dvh] overflow-y-auto overflow-x-hidden bg-slate-950 px-4 text-white sm:px-6" style={{ paddingTop: "calc(env(safe-area-inset-top) + 1rem)", paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)", WebkitOverflowScrolling: "touch" }}>
         <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,.22),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(244,63,94,.18),transparent_42%)]" />
         <div className="relative mx-auto flex max-w-5xl flex-col gap-5">
           <section className="grid gap-5 lg:grid-cols-[1fr_1fr]">
@@ -447,12 +473,29 @@ export default function ChainReactorModern() {
   }
 
   return (
-    <main className="min-h-screen overflow-hidden bg-slate-950 px-2 py-3 text-white sm:px-4">
+    <main className="h-[100dvh] overflow-hidden bg-slate-950 px-2 text-white sm:px-4" style={{ paddingTop: "calc(env(safe-area-inset-top) + 0.75rem)", paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}>
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,.18),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(244,63,94,.15),transparent_40%)]" />
       <div className="relative mx-auto flex min-h-[calc(100vh-1.5rem)] max-w-4xl flex-col gap-3">
-        <header className="flex items-center justify-between rounded-3xl border border-white/10 bg-white/5 px-3 py-2 shadow-2xl backdrop-blur sm:px-4"><Button size="sm" variant="secondary" onClick={() => setScreen("setup")} disabled={busy}><Icon type="back" className="mr-1 h-4 w-4" /> Setup</Button><div className="text-center"><div className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">Turn</div><div className={`text-lg font-black sm:text-2xl ${players[activePlayer].text}`}>{players[activePlayer].displayName}</div></div><Button size="sm" variant="secondary" onClick={() => resetMatch()} disabled={busy} aria-label="Reset game"><Icon type="reset" className="h-4 w-4" /></Button></header>
+        <header className="flex items-center justify-between rounded-3xl border border-white/10 bg-white/5 px-3 py-2 shadow-2xl backdrop-blur sm:px-4">
+          <Button size="sm" variant="secondary" onClick={() => setScreen("setup")} disabled={busy}>
+            <Icon type="back" className="mr-1 h-4 w-4" /> Setup
+          </Button>
+
+          <div />
+
+          <Button size="sm" variant="secondary" onClick={() => resetMatch()} disabled={busy} aria-label="Reset game">
+            <Icon type="reset" className="h-4 w-4" />
+          </Button>
+        </header>
+
+        <div className="mt-2 text-center">
+          <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">Turn</div>
+          <div className={`text-xl font-black sm:text-2xl ${players[activePlayer].text}`}>
+            {players[activePlayer].displayName}
+          </div>
+        </div>
         <section className="flex flex-1 items-center justify-center"><div ref={boardRef} className="relative grid w-full max-w-[min(96vw,680px)] gap-1.5 rounded-3xl border border-white/10 bg-slate-900/70 p-2 shadow-2xl backdrop-blur sm:gap-2 sm:p-3" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>{board.map((row, r) => row.map((cell, c) => <Cell key={`${r}-${c}`} cell={cell} row={r} col={c} rows={rows} cols={cols} activePlayer={activePlayer} disabled={busy || winner !== null} onTap={() => placeOrb(r, c)} cellSize={cellSize} />))}<AnimatePresence>{flyingOrbs.map((orb) => <FlyingOrb key={orb.id} orb={orb} rows={rows} cols={cols} cellSize={cellSize} />)}</AnimatePresence></div></section>
-        <AnimatePresence>{winner !== null && <motion.div initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.95 }} className="fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-3xl border border-white/10 bg-slate-950/90 p-5 text-center shadow-2xl backdrop-blur"><Icon type="crown" className={`mx-auto mb-2 h-9 w-9 ${players[winner].text}`} /><div className="text-xs uppercase tracking-widest text-white/50">Winner</div><div className={`text-3xl font-black ${players[winner].text}`}>{players[winner].displayName}</div><div className="mt-4 grid grid-cols-2 gap-2"><Button variant="secondary" onClick={() => setScreen("setup")}>Setup</Button><Button onClick={() => resetMatch()}>Play again</Button></div></motion.div>}</AnimatePresence>
+        <AnimatePresence>{winner !== null && <motion.div initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.95 }} className="fixed inset-x-4 top-1/2 z-50 mx-auto max-w-sm -translate-y-1/2 rounded-3xl border border-white/10 bg-slate-950/90 p-5 text-center shadow-2xl backdrop-blur"><Icon type="crown" className={`mx-auto mb-2 h-9 w-9 ${players[winner].text}`} /><div className="text-xs uppercase tracking-widest text-white/50">Winner</div><div className={`text-3xl font-black ${players[winner].text}`}>{players[winner].displayName}</div><div className="mt-4 grid grid-cols-2 gap-2"><Button variant="secondary" onClick={() => setScreen("setup")}>Setup</Button><Button onClick={() => resetMatch()}>Play again</Button></div></motion.div>}</AnimatePresence>
       </div>
     </main>
   );
