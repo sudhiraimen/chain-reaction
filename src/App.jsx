@@ -212,10 +212,25 @@ export default function ChainReactorModern() {
           radial-gradient(circle at bottom right, rgba(244,63,94,.18), transparent 42%),
           #020617;
       }
-      body { width: 100vw; min-height: 100vh; min-height: 100dvh; position: fixed; inset: 0; }
-      #root { width: 100vw; min-height: 100dvh; }
+      body {
+        width: 100vw;
+        min-height: 100vh;
+        min-height: 100dvh;
+        position: relative;
+      }
+      #root {
+        width: 100vw;
+        min-height: 100dvh;
+        overflow: hidden;
+      }
       button, input, select, textarea { font: inherit; }
-      main { width: 100vw; min-height: 100dvh; overflow: hidden; background: transparent !important; }
+      main {
+        width: 100vw;
+        min-height: 100dvh;
+        overflow: hidden;
+        background: transparent !important;
+        transform: translateZ(0);
+      }
       main.setup-scroll {
         overflow-y: auto !important;
         overflow-x: hidden !important;
@@ -407,7 +422,7 @@ export default function ChainReactorModern() {
   return (
     <main className="min-h-[100dvh] overflow-hidden bg-slate-950 px-2 text-white" style={{ paddingTop: "calc(env(safe-area-inset-top) + 0.55rem)", paddingBottom: "calc(env(safe-area-inset-bottom) + 0.55rem)" }}>
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,.18),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(244,63,94,.15),transparent_40%)]" />
-      <div className="relative mx-auto flex h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-1.1rem)] max-w-md flex-col gap-2">
+      <div className="relative mx-auto flex h-[calc(100dvh-1.1rem)] max-w-md flex-col gap-2">
         <header className="grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-[1.45rem] border border-white/10 bg-white/[0.07] px-2 py-2 shadow-2xl backdrop-blur-xl">
           <Button size="sm" variant="secondary" onClick={() => setScreen("setup")} disabled={busy} className="rounded-[1rem]"><Icon type="back" className="mr-1 h-4 w-4" /> Setup</Button>
           <div className="min-w-0 text-center">
@@ -418,7 +433,7 @@ export default function ChainReactorModern() {
         </header>
 
         <section className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
-          <div ref={boardRef} className="relative grid shrink-0 gap-1.5 rounded-[1.65rem] border border-white/10 bg-slate-900/75 p-2 shadow-2xl backdrop-blur-xl" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, width: `min(96vw, 430px, calc((100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 6rem) * ${cols} / ${rows}))` }}>
+          <div ref={boardRef} className="relative grid shrink-0 gap-1.5 rounded-[1.65rem] border border-white/10 bg-slate-900/75 p-2 shadow-2xl backdrop-blur-xl" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, width: `min(96vw, 430px, calc((100dvh - 6rem) * ${cols} / ${rows}))` }}>
             {board.map((row, r) => row.map((cell, c) => <Cell key={`${r}-${c}`} cell={cell} row={r} col={c} rows={rows} cols={cols} activePlayer={activePlayer} disabled={busy || winner !== null} onTap={() => placeOrb(r, c)} cellSize={cellSize} />))}
             <AnimatePresence>{flyingOrbs.map((orb) => <FlyingOrb key={orb.id} orb={orb} rows={rows} cols={cols} cellSize={cellSize} />)}</AnimatePresence>
           </div>
