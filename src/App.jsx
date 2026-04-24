@@ -239,18 +239,36 @@ function IconReset({ className = "" }) {
 
 function AppShell({ children }) {
   return (
+    <>
+      <style>{`
+        html, body, #root {
+          margin: 0;
+          min-height: 100%;
+          background: #050507;
+          overscroll-behavior: none;
+        }
+        body {
+          padding: 0;
+        }
+        @supports (height: 100dvh) {
+          .app-shell-min-height {
+            min-height: 100dvh;
+          }
+        }
+      `}</style>
     <main
-      className="min-h-screen overflow-hidden bg-[#050507] text-[#f5f5f7] antialiased"
+      className="app-shell-min-height min-h-screen overflow-hidden bg-[#050507] text-[#f5f5f7] antialiased"
       style={{
         fontFamily:
           '"Inter Tight", "SF Pro Display", "Satoshi", -apple-system, BlinkMacSystemFont, system-ui, sans-serif',
       }}
     >
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_50%_-14%,rgba(80,80,92,.42),rgba(5,5,7,.2)_38%,rgba(5,5,7,1)_74%)]" />
-      <section className="relative mx-auto flex min-h-screen w-full max-w-[430px] flex-col px-5 pb-5 pt-4">
+      <section className="relative mx-auto flex min-h-screen w-full max-w-[430px] flex-col px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))]">
         {children}
       </section>
     </main>
+    </>
   );
 }
 
