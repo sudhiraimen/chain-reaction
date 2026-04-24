@@ -2,10 +2,10 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
 const PLAYERS = [
-  { name: "Red", color: "#ff453a", soft: "rgba(255,69,58,.18)" },
-  { name: "Blue", color: "#0a84ff", soft: "rgba(10,132,255,.18)" },
-  { name: "Green", color: "#30d158", soft: "rgba(48,209,88,.18)" },
-  { name: "Amber", color: "#ff9f0a", soft: "rgba(255,159,10,.18)" },
+  { name: "Red", color: "#ff453a", soft: "rgba(255,69,58,.08)" },
+  { name: "Blue", color: "#0a84ff", soft: "rgba(10,132,255,.08)" },
+  { name: "Green", color: "#30d158", soft: "rgba(48,209,88,.08)" },
+  { name: "Amber", color: "#ff9f0a", soft: "rgba(255,159,10,.08)" },
 ];
 
 const BOARD_SIZES = {
@@ -86,24 +86,29 @@ function runLogicTests() {
     expect(capacityFor(0, 0, 8, 6) === 2, "corner should be 2");
     expect(capacityFor(7, 5, 8, 6) === 2, "corner should be 2");
   });
+
   test("edge capacity", () => {
     expect(capacityFor(0, 2, 8, 6) === 3, "edge should be 3");
     expect(capacityFor(4, 5, 8, 6) === 3, "edge should be 3");
   });
+
   test("center capacity", () => {
     expect(capacityFor(3, 3, 8, 6) === 4, "center should be 4");
   });
+
   test("neighbor counts", () => {
     expect(getNeighbors(0, 0, 8, 6).length === 2, "corner neighbors");
     expect(getNeighbors(0, 3, 8, 6).length === 3, "edge neighbors");
     expect(getNeighbors(3, 3, 8, 6).length === 4, "center neighbors");
   });
+
   test("board shape", () => {
     const board = makeBoard(8, 6);
     expect(board.length === 8, "rows");
     expect(board[0].length === 6, "cols");
     expect(board[0][0].cap === 2, "corner cap");
   });
+
   test("orb ownership totals", () => {
     const board = makeBoard(3, 3);
     board[0][0].owner = 0;
@@ -114,6 +119,7 @@ function runLogicTests() {
     expect(totalOrbs(board, 1) === 1, "player 1 total");
     expect(activePlayersOnBoard(board).size === 2, "active players");
   });
+
   test("board presets are valid", () => {
     for (const preset of Object.values(BOARD_SIZES)) {
       expect(preset.rows >= 6, "preset rows should be playable");
@@ -121,20 +127,62 @@ function runLogicTests() {
     }
   });
 
+  test("empty board has no active players", () => {
+    expect(activePlayersOnBoard(makeBoard(4, 4)).size === 0, "empty board should have no active players");
+  });
+
+  test("cloneBoard does not mutate original", () => {
+    const original = makeBoard(3, 3);
+    const copy = cloneBoard(original);
+    copy[0][0].count = 1;
+    copy[0][0].owner = 0;
+    expect(original[0][0].count === 0, "original count should remain unchanged");
+    expect(original[0][0].owner === null, "original owner should remain unchanged");
+  });
+
   return results;
 }
 
-function OrbCluster({ count, color }) {
+function OrbCluster({ count, color, cap }) {
   if (!count) return null;
+
+  // Boost visibility specifically for 2 orbs (was too subtle)
+  let instability = Math.min(count / Math.max(cap - 1, 1), 1);
+  if (count === 2) instability = Math.max(instability, 0.45);
+  const duration = Math.max(0.55, 1.8 - instability * 1.05);
+  const movement = instability * 3.6;
+  const glow = 0.18 + instability * 0.34;
+  const isCritical = count >= cap - 1;
+
   const positions = {
     1: [[50, 50]],
-    2: [[40, 50], [60, 50]],
-    3: [[50, 39], [39, 60], [61, 60]],
-    4: [[40, 40], [60, 40], [40, 60], [60, 60]],
+    2: [
+      [40, 50],
+      [60, 50],
+    ],
+    3: [
+      [50, 39],
+      [39, 60],
+      [61, 60],
+    ],
+    4: [
+      [40, 40],
+      [60, 40],
+      [40, 60],
+      [60, 60],
+    ],
   }[Math.min(count, 4)];
 
   return (
-    <div className="absolute inset-0">
+    <motion.div
+      className="absolute inset-0"
+      animate={
+        isCritical
+          ? { rotate: [-0.6, 0.7, -0.5], scale: [1, 1.025, 1] }
+          : { scale: [1, 1 + instability * 0.012, 1] }
+      }
+      transition={{ duration, repeat: Infinity, ease: "easeInOut" }}
+    >
       {positions.map(([x, y], i) => (
         <motion.span
           key={i}
@@ -147,20 +195,39 @@ function OrbCluster({ count, color }) {
             translateX: "-50%",
             translateY: "-50%",
             background: color,
-            boxShadow: `0 10px 28px ${color}44, inset 0 1px 2px rgba(255,255,255,.5)`,
+            boxShadow: `0 10px ${18 + instability * 22}px rgba(255,255,255,${glow * 0.08}), 0 0 ${14 + instability * 28}px ${color}${isCritical ? "88" : "44"}, inset 0 1px 2px rgba(255,255,255,.5)`,
           }}
           initial={{ scale: 0, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: "spring", stiffness: 360, damping: 24, delay: i * 0.015 }}
+          animate={{
+            scale: isCritical ? [1, 1.13, 0.96, 1.08, 1] : [1, 1 + instability * 0.14, 1],
+            opacity: 1,
+            x: isCritical ? [0, movement, -movement * 0.7, movement * 0.35, 0] : [0, movement * 0.5, 0],
+            y: isCritical ? [0, -movement * 0.6, movement * 0.7, -movement * 0.25, 0] : [0, -movement * 0.45, 0],
+          }}
+          transition={{
+            scale: { duration, repeat: Infinity, ease: "easeInOut", delay: i * 0.05 },
+            x: { duration: duration * 0.78, repeat: Infinity, ease: "easeInOut", delay: i * 0.07 },
+            y: { duration: duration * 0.9, repeat: Infinity, ease: "easeInOut", delay: i * 0.06 },
+            opacity: { type: "spring", stiffness: 360, damping: 24, delay: i * 0.015 },
+          }}
         />
       ))}
-    </div>
+    </motion.div>
   );
 }
 
 function IconReset({ className = "" }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <path d="M3 12a9 9 0 1 0 3-6.7" />
       <path d="M3 4v6h6" />
     </svg>
@@ -169,7 +236,13 @@ function IconReset({ className = "" }) {
 
 function AppShell({ children }) {
   return (
-    <main className="min-h-screen overflow-hidden bg-[#050507] text-[#f5f5f7] antialiased">
+    <main
+      className="min-h-screen overflow-hidden bg-[#050507] text-[#f5f5f7] antialiased"
+      style={{
+        fontFamily:
+          '"Inter Tight", "SF Pro Display", "Satoshi", -apple-system, BlinkMacSystemFont, system-ui, sans-serif',
+      }}
+    >
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_50%_-14%,rgba(80,80,92,.42),rgba(5,5,7,.2)_38%,rgba(5,5,7,1)_74%)]" />
       <section className="relative mx-auto flex min-h-screen w-full max-w-[430px] flex-col px-5 pb-5 pt-4">
         {children}
@@ -189,30 +262,22 @@ function PrimaryButton({ children, className = "", ...props }) {
   );
 }
 
-function GhostButton({ children, className = "", ...props }) {
-  return (
-    <button
-      {...props}
-      className={`h-11 rounded-full bg-white/[.075] px-5 text-[14px] font-semibold text-[#f5f5f7] ring-1 ring-white/[.08] transition active:scale-95 ${className}`}
-    >
-      {children}
-    </button>
-  );
-}
-
 function WelcomeScreen({ onContinue }) {
   return (
     <AppShell>
       <div className="flex flex-1 flex-col justify-between py-8">
         <div className="pt-8">
-          <p className="text-[13px] font-medium tracking-tight text-[#8e8e93]">A chain reaction strategy game</p>
-          <h1 className="mt-2 text-[56px] font-semibold leading-[.9] tracking-[-.075em]">Chain<br />Reactor</h1>
+          <h1 className="mt-2 text-[56px] font-semibold leading-[.9] tracking-[-0.06em]">
+            Chain
+            <br />
+            Reactor
+          </h1>
         </div>
 
         <div className="relative mx-auto grid h-64 w-64 place-items-center">
           <motion.div
             className="absolute h-56 w-56 rounded-full bg-white/[.045] ring-1 ring-white/[.08]"
-            animate={{ scale: [1, 1.06, 1], opacity: [.65, 1, .65] }}
+            animate={{ scale: [1, 1.06, 1], opacity: [0.65, 1, 0.65] }}
             transition={{ duration: 4, repeat: Infinity }}
           />
           <motion.div
@@ -233,10 +298,9 @@ function WelcomeScreen({ onContinue }) {
         </div>
 
         <div className="space-y-4 pb-4">
-          <p className="max-w-[300px] text-[17px] leading-6 tracking-[-.025em] text-[#c7c7cc]">
-            Place orbs. Trigger explosions. Capture the board before your opponents do.
-          </p>
-          <PrimaryButton onClick={onContinue} className="w-full">Continue</PrimaryButton>
+          <PrimaryButton onClick={onContinue} className="w-full">
+            Continue
+          </PrimaryButton>
         </div>
       </div>
     </AppShell>
@@ -247,14 +311,16 @@ function SetupScreen({ playerCount, setPlayerCount, mode, setMode, onStart, onBa
   return (
     <AppShell>
       <header className="mb-8 flex items-center justify-between pt-2">
-        <button onClick={onBack} className="text-[14px] font-semibold text-[#8e8e93] active:scale-95">Back</button>
+        <button onClick={onBack} className="text-[14px] font-semibold text-[#8e8e93] active:scale-95">
+          Back
+        </button>
         <p className="text-[13px] font-medium text-[#8e8e93]">Setup</p>
         <div className="w-9" />
       </header>
 
       <div className="flex flex-1 flex-col">
         <div className="mb-8">
-          <h1 className="text-[42px] font-semibold tracking-[-.065em]">New Game</h1>
+          <h1 className="text-[42px] font-semibold tracking-[-0.045em]">New Game</h1>
           <p className="mt-2 text-[16px] leading-6 text-[#8e8e93]">Choose players and board size.</p>
         </div>
 
@@ -267,7 +333,9 @@ function SetupScreen({ playerCount, setPlayerCount, mode, setMode, onStart, onBa
                   key={n}
                   onClick={() => setPlayerCount(n)}
                   className={`h-12 rounded-full text-[15px] font-semibold transition active:scale-95 ${
-                    playerCount === n ? "bg-[#f5f5f7] text-[#050507]" : "bg-white/[.065] text-[#8e8e93] ring-1 ring-white/[.08]"
+                    playerCount === n
+                      ? "bg-[#f5f5f7] text-[#050507]"
+                      : "bg-white/[.065] text-[#8e8e93] ring-1 ring-white/[.08]"
                   }`}
                 >
                   {n}
@@ -283,8 +351,10 @@ function SetupScreen({ playerCount, setPlayerCount, mode, setMode, onStart, onBa
                 <button
                   key={key}
                   onClick={() => setMode(key)}
-                  className={`flex h-13 w-full items-center justify-between rounded-[1.35rem] px-4 py-3 text-left transition active:scale-[.99] ${
-                    mode === key ? "bg-[#f5f5f7] text-[#050507]" : "bg-white/[.065] text-[#f5f5f7] ring-1 ring-white/[.08]"
+                  className={`flex w-full items-center justify-between rounded-[1.35rem] px-4 py-3 text-left transition active:scale-[.99] ${
+                    mode === key
+                      ? "bg-[#f5f5f7] text-[#050507]"
+                      : "bg-white/[.065] text-[#f5f5f7] ring-1 ring-white/[.08]"
                   }`}
                 >
                   <span className="text-[15px] font-semibold">{value.label}</span>
@@ -306,9 +376,10 @@ function SetupScreen({ playerCount, setPlayerCount, mode, setMode, onStart, onBa
           </div>
         </div>
 
-        <div className="mt-auto space-y-3 pb-4 pt-8">
-          <PrimaryButton onClick={onStart} className="w-full">Start Game</PrimaryButton>
-          <p className="text-center text-[11px] text-[#8e8e93]">Own or empty cells only. Critical mass explodes.</p>
+        <div className="mt-auto pb-4 pt-8">
+          <PrimaryButton onClick={onStart} className="w-full">
+            Start Game
+          </PrimaryButton>
         </div>
       </div>
     </AppShell>
@@ -328,17 +399,21 @@ export default function ChainReactionGame() {
   const [busy, setBusy] = useState(false);
   const [turns, setTurns] = useState(0);
   const [message, setMessage] = useState("Tap any empty cell.");
-  const [showTests, setShowTests] = useState(false);
-  const [testResults] = useState(() => runLogicTests());
   const boardRef = useRef(board);
 
   useEffect(() => {
     boardRef.current = board;
   }, [board]);
 
+  useEffect(() => {
+    const failedTests = runLogicTests().filter((result) => !result.passed);
+    if (failedTests.length) {
+      console.error("Chain Reactor logic tests failed", failedTests);
+    }
+  }, []);
+
   const players = useMemo(() => PLAYERS.slice(0, playerCount), [playerCount]);
   const current = players[currentPlayer] || players[0];
-  const testsPassed = testResults.every((result) => result.passed);
 
   function reset(newMode = mode, newCount = playerCount, nextScreen = "game") {
     const safeCount = Math.min(Math.max(newCount, 2), PLAYERS.length);
@@ -378,6 +453,7 @@ export default function ChainReactionGame() {
     while (guard < 1000) {
       guard += 1;
       const exploding = [];
+
       for (let r = 0; r < rows; r += 1) {
         for (let c = 0; c < cols; c += 1) {
           if (working[r][c].count >= working[r][c].cap) exploding.push([r, c]);
@@ -395,11 +471,13 @@ export default function ChainReactionGame() {
 
       for (const [r, c] of exploding) {
         if (working[r][c].count < working[r][c].cap) continue;
+
         working[r][c].count -= working[r][c].cap;
         if (working[r][c].count <= 0) {
           working[r][c].count = 0;
           working[r][c].owner = null;
         }
+
         for (const [nr, nc] of getNeighbors(r, c, rows, cols)) {
           working[nr][nc].count += 1;
           working[nr][nc].owner = player;
@@ -409,11 +487,8 @@ export default function ChainReactionGame() {
 
       setBoard(cloneBoard(working));
 
-      if (canEndGame) {
-        const present = activePlayersOnBoard(working);
-        if (present.size <= 1) {
-          break;
-        }
+      if (canEndGame && activePlayersOnBoard(working).size <= 1) {
+        break;
       }
 
       await sleep(145);
@@ -424,6 +499,7 @@ export default function ChainReactionGame() {
 
   async function play(row, col) {
     if (busy || winner !== null) return;
+
     const cell = boardRef.current[row][col];
     if (cell.owner !== null && cell.owner !== currentPlayer) {
       setMessage("Pick your own cell or an empty one.");
@@ -432,7 +508,6 @@ export default function ChainReactionGame() {
 
     setBusy(true);
     setStarted(true);
-    
 
     const nextBoard = cloneBoard(boardRef.current);
     nextBoard[row][col].count += 1;
@@ -441,11 +516,10 @@ export default function ChainReactionGame() {
     setBoard(nextBoard);
     await sleep(90);
 
-    const settled = await resolveReactions(nextBoard, currentPlayer, turns + 1 >= players.length);
+    const newTurns = turns + 1;
+    const settled = await resolveReactions(nextBoard, currentPlayer, newTurns >= players.length);
     boardRef.current = settled;
     setBoard(settled);
-
-    const newTurns = turns + 1;
     setTurns(newTurns);
 
     let newAlive = Array.from({ length: players.length }, (_, i) => i);
@@ -456,7 +530,7 @@ export default function ChainReactionGame() {
     setAlive(newAlive);
 
     const present = activePlayersOnBoard(settled);
-    if ((started || newTurns >= players.length) && present.size === 1 && newTurns >= players.length) {
+    if (present.size === 1 && newTurns >= players.length) {
       const only = [...present][0];
       setWinner(only);
       setMessage(`${players[only].name} wins`);
@@ -491,8 +565,7 @@ export default function ChainReactionGame() {
     <AppShell>
       <header className="mb-5 flex items-center justify-between">
         <div>
-          <p className="text-[12px] font-medium tracking-tight text-[#8e8e93]">Chain Reactor</p>
-          <h1 className="text-[34px] font-semibold tracking-[-.055em] text-[#f5f5f7]">Game</h1>
+          <h1 className="text-[34px] font-semibold tracking-[-0.04em] text-[#f5f5f7]">Chain Reaction</h1>
         </div>
         <div className="flex gap-2">
           <button
@@ -551,6 +624,7 @@ export default function ChainReactionGame() {
             row.map((cell, c) => {
               const owner = cell.owner !== null ? players[cell.owner] : null;
               const nearCritical = cell.count === cell.cap - 1 && cell.count > 0;
+
               return (
                 <motion.button
                   key={`${r}-${c}`}
@@ -560,7 +634,7 @@ export default function ChainReactionGame() {
                   className="relative overflow-hidden rounded-[1.05rem] bg-[#111114] ring-1 ring-white/[.075] transition disabled:opacity-90 active:scale-[.96]"
                   style={{
                     aspectRatio: "1 / 1",
-                    background: owner ? `linear-gradient(180deg, rgba(255,255,255,.09), ${owner.soft})` : "#111114",
+                    background: owner ? owner.soft : "#111114",
                   }}
                   animate={nearCritical ? { y: [0, -1, 0], scale: [1, 1.015, 1] } : { y: 0, scale: 1 }}
                   transition={nearCritical ? { repeat: Infinity, duration: 1.2 } : { duration: 0.18 }}
@@ -572,10 +646,10 @@ export default function ChainReactionGame() {
                       initial={{ opacity: 0.24, scale: 0.5 }}
                       animate={{ opacity: 0, scale: 1.22 }}
                       transition={{ duration: 0.42 }}
-                      style={{ background: owner.color }}
+                      style={{ background: owner.color, opacity: 0.12 }}
                     />
                   )}
-                  <OrbCluster count={cell.count} color={owner?.color} />
+                  <OrbCluster count={cell.count} color={owner?.color} cap={cell.cap} />
                 </motion.button>
               );
             })
@@ -603,26 +677,6 @@ export default function ChainReactionGame() {
           )}
         </AnimatePresence>
       </div>
-
-      <footer className="text-center">
-        <p className="text-[11px] text-[#8e8e93]">Own or empty cells only. Critical mass explodes.</p>
-        <button
-          onClick={() => setShowTests((value) => !value)}
-          className="mt-2 rounded-full px-3 py-1 text-[10px] font-semibold text-[#8e8e93]"
-        >
-          Tests {testResults.filter((result) => result.passed).length}/{testResults.length} {testsPassed ? "passed" : "failed"}
-        </button>
-        {showTests && (
-          <div className="mt-2 rounded-3xl bg-white/[.07] p-3 text-left text-[10px] text-[#c7c7cc] ring-1 ring-white/[.08]">
-            {testResults.map((result) => (
-              <div key={result.name} className="flex justify-between gap-3 py-0.5">
-                <span>{result.name}</span>
-                <span>{result.passed ? "pass" : result.error}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </footer>
     </AppShell>
   );
 }
