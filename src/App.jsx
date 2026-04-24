@@ -12,6 +12,19 @@ const COLORS = [
   { name: "Mint", hex: "#63ddb1" },
 ];
 
+const UI = {
+  page: "#05060a",
+  pageTop: "#070911",
+  panel: "#0b0f18",
+  panelSoft: "#0c0f17",
+  tile: "#11141d",
+  tileActive: "#1a2030",
+  button: "#121620",
+  text: "rgba(255,255,255,0.94)",
+  muted: "rgba(255,255,255,0.38)",
+  ring: "rgba(255,255,255,0.05)",
+};
+
 const DEFAULT_ROWS = 9;
 const DEFAULT_COLS = 6;
 const TRAVEL_MS = 170;
@@ -72,6 +85,10 @@ function explode(board, critical, owner, rows, cols) {
   return next;
 }
 
+function canPlayCell(cell, activePlayer, disabled) {
+  return !disabled && (cell.owner === null || cell.owner === activePlayer);
+}
+
 function runLogicTests() {
   const errors = [];
   const assert = (condition, message) => {
@@ -101,6 +118,11 @@ function runLogicTests() {
   centerBoard[1][1] = { owner: 1, count: 4 };
   const centerExploded = explode(centerBoard, [[1, 1]], 1, 3, 3);
   assert(playerMass(centerExploded, 2)[1] === 4, "center explosion sends four orbs correctly");
+
+  assert(canPlayCell({ owner: null, count: 0 }, 0, false), "empty cells are playable");
+  assert(canPlayCell({ owner: 0, count: 1 }, 0, false), "owned cells are playable");
+  assert(!canPlayCell({ owner: 1, count: 1 }, 0, false), "opponent cells are not playable");
+  assert(!canPlayCell({ owner: null, count: 0 }, 0, true), "disabled board blocks play");
 
   if (errors.length) console.error("Chain Reactor logic tests failed:", errors);
   else console.info("Chain Reactor logic tests passed");
@@ -144,17 +166,19 @@ function SvgIcon({ type, size = 24 }) {
   );
 }
 
-function Button({ children, className = "", kind = "primary", ...props }) {
-  const styles =
-    kind === "primary"
-      ? "bg-white/90 text-[#05060a] shadow-none active:bg-white"
-      : kind === "ghost"
-      ? "bg-transparent text-white/55 active:text-white"
-      : "bg-[#121620] text-white/90 ring-1 ring-white/[0.04] active:bg-[#1a2030]";
+function Button({ children, className = "", kind = "primary", style, ...props }) {
+  const baseStyle = {
+    color: kind === "primary" ? UI.page : "rgba(255,255,255,0.9)",
+    background: kind === "primary" ? "rgba(255,255,255,0.9)" : kind === "ghost" ? "transparent" : UI.button,
+    boxShadow: "none",
+    border: kind === "primary" ? "none" : `1px solid ${UI.ring}`,
+    ...style,
+  };
 
   return (
     <button
-      className={`touch-manipulation select-none rounded-full px-4 py-3 text-sm font-medium tracking-[-0.015em] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-35 ${styles} ${className}`}
+      className={`touch-manipulation select-none rounded-full px-4 py-3 text-sm font-medium tracking-[-0.015em] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-35 ${className}`}
+      style={baseStyle}
       {...props}
     >
       {children}
@@ -184,7 +208,7 @@ function OrbCluster({ color, count, fullness, cellSize }) {
         return (
           <motion.span
             key={i}
-            className="absolute rounded-full shadow-[0_0_10px_rgba(255,255,255,.18)]"
+            className="absolute rounded-full"
             style={{
               width: orb,
               height: orb,
@@ -193,6 +217,7 @@ function OrbCluster({ color, count, fullness, cellSize }) {
               marginLeft: -orb / 2,
               marginTop: -orb / 2,
               background: color,
+              boxShadow: "0 0 10px rgba(255,255,255,0.18)",
             }}
             animate={{
               x: fullness > 0.8 ? [0, -1.8, 1.8, 0] : [0, -0.5, 0.5, 0],
@@ -209,7 +234,7 @@ function OrbCluster({ color, count, fullness, cellSize }) {
 
 function Cell({ cell, r, c, rows, cols, activePlayer, disabled, onTap, cellSize }) {
   const owned = cell.owner !== null;
-  const canTap = !disabled && (!owned || cell.owner === activePlayer);
+  const canTap = canPlayCell(cell, activePlayer, disabled);
   const cap = capacity(r, c, rows, cols);
   const fullness = cell.count > 0 ? Math.min(1, cell.count / Math.max(1, cap - 1)) : 0;
   const color = owned ? COLORS[cell.owner].hex : "transparent";
@@ -220,9 +245,11 @@ function Cell({ cell, r, c, rows, cols, activePlayer, disabled, onTap, cellSize 
       disabled={!canTap}
       onClick={onTap}
       whileTap={canTap ? { scale: 0.94 } : undefined}
-      className={`relative flex aspect-square items-center justify-center rounded-[0.9rem] bg-[#11141d] shadow-[inset_0_1px_0_rgba(255,255,255,.02)] transition ${
-        canTap ? "active:bg-[#1a2030] active:scale-[0.985]" : "opacity-35"
-      }`}
+      className="relative flex aspect-square items-center justify-center rounded-[0.9rem] transition disabled:opacity-35"
+      style={{
+        background: UI.tile,
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.02)",
+      }}
     >
       {owned && cell.count > 0 && <OrbCluster color={color} count={cell.count} fullness={fullness} cellSize={cellSize} />}
     </motion.button>
@@ -238,8 +265,17 @@ function FlyingOrb({ orb, rows, cols, cellSize }) {
 
   return (
     <motion.span
-      className="pointer-events-none absolute z-20 rounded-full shadow-[0_0_10px_rgba(255,255,255,.22)]"
-      style={{ background: orb.color, width: size, height: size, left: fromLeft, top: fromTop, marginLeft: -size / 2, marginTop: -size / 2 }}
+      className="pointer-events-none absolute z-20 rounded-full"
+      style={{
+        background: orb.color,
+        width: size,
+        height: size,
+        left: fromLeft,
+        top: fromTop,
+        marginLeft: -size / 2,
+        marginTop: -size / 2,
+        boxShadow: "0 0 10px rgba(255,255,255,0.22)",
+      }}
       initial={{ left: fromLeft, top: fromTop, opacity: 1, scale: 1 }}
       animate={{ left: toLeft, top: toTop, opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 1 }}
@@ -250,14 +286,26 @@ function FlyingOrb({ orb, rows, cols, cellSize }) {
 
 function Stepper({ label, value, min, max, onChange }) {
   return (
-    <div className="rounded-[1.5rem] bg-[#11141d] p-3 ring-1 ring-white/[0.045]">
-      <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/38">{label}</div>
+    <div className="rounded-[1.5rem] p-3" style={{ background: UI.tile, border: `1px solid ${UI.ring}` }}>
+      <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: UI.muted }}>{label}</div>
       <div className="flex items-center justify-between">
-        <Button kind="ghost" className="flex h-12 w-12 items-center justify-center rounded-full bg-white/[0.03] p-0 ring-1 ring-white/[0.05]" disabled={value <= min} onClick={() => onChange(value - 1)}>
+        <Button
+          kind="ghost"
+          className="flex h-12 w-12 items-center justify-center rounded-full p-0"
+          disabled={value <= min}
+          onClick={() => onChange(value - 1)}
+          style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${UI.ring}` }}
+        >
           <SvgIcon type="minus" size={24} />
         </Button>
-        <div className="text-2xl font-semibold tracking-[-0.035em] text-white/90">{value}</div>
-        <Button kind="ghost" className="flex h-12 w-12 items-center justify-center rounded-full bg-white/[0.03] p-0 ring-1 ring-white/[0.05]" disabled={value >= max} onClick={() => onChange(value + 1)}>
+        <div className="text-2xl font-semibold tracking-[-0.035em]" style={{ color: "rgba(255,255,255,0.9)" }}>{value}</div>
+        <Button
+          kind="ghost"
+          className="flex h-12 w-12 items-center justify-center rounded-full p-0"
+          disabled={value >= max}
+          onClick={() => onChange(value + 1)}
+          style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${UI.ring}` }}
+        >
           <SvgIcon type="plus" size={24} />
         </Button>
       </div>
@@ -296,7 +344,7 @@ export default function ChainReactorIPhoneApp() {
       name: "viewport",
       content: "width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, interactive-widget=resizes-content",
     });
-    addMeta("meta[name='theme-color']", { name: "theme-color", content: "#080b12" });
+    addMeta("meta[name='theme-color']", { name: "theme-color", content: UI.page });
     addMeta("meta[name='apple-mobile-web-app-capable']", { name: "apple-mobile-web-app-capable", content: "yes" });
     addMeta("meta[name='apple-mobile-web-app-title']", { name: "apple-mobile-web-app-title", content: "Chain Reactor" });
     addMeta("meta[name='apple-mobile-web-app-status-bar-style']", { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" });
@@ -305,12 +353,12 @@ export default function ChainReactorIPhoneApp() {
 
     const style = document.createElement("style");
     style.textContent = `
-      :root { color-scheme: dark; background: #080b12; font-family: "Manrope", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
-      html, body, #root { margin: 0; width: 100%; height: 100%; min-height: 100%; background: #080b12; overflow: hidden; overscroll-behavior: none; position: fixed; inset: 0; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; touch-action: none; }
+      :root { color-scheme: dark; background: ${UI.page}; font-family: "Manrope", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+      html, body, #root { margin: 0; width: 100%; height: 100%; min-height: 100%; background: ${UI.page}; overflow: hidden; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
+      html, body { position: relative; touch-action: manipulation; }
       body { min-height: 100dvh; height: 100dvh; }
       button { font: inherit; }
       h1, h2, h3 { font-family: "Space Grotesk", "Manrope", "Inter", -apple-system, BlinkMacSystemFont, system-ui, sans-serif; letter-spacing: -0.025em; }
-      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
       @supports (height: 100svh) { body, #root { min-height: 100svh; height: 100svh; } }
     `;
     document.head.appendChild(style);
@@ -402,7 +450,7 @@ export default function ChainReactorIPhoneApp() {
   async function play(r, c) {
     if (busy || winner !== null) return;
     const cell = board[r][c];
-    if (cell.owner !== null && cell.owner !== activePlayer) return;
+    if (!canPlayCell(cell, activePlayer, false)) return;
 
     setBusy(true);
     stopped.current = false;
@@ -423,26 +471,30 @@ export default function ChainReactorIPhoneApp() {
     setBusy(false);
   }
 
+  const pageBackground = {
+    backgroundColor: UI.page,
+    backgroundImage: `radial-gradient(circle at 50% -10%, rgba(120,140,255,0.12), transparent 36%), linear-gradient(180deg, ${UI.pageTop} 0%, ${UI.page} 60%, #04050a 100%)`,
+  };
+
   if (screen !== "game") {
     return (
       <main
-        className="fixed inset-0 h-[100dvh] w-screen overflow-hidden bg-[#05060a] px-5 text-white"
-        style={{ paddingTop: "calc(env(safe-area-inset-top) + 18px)", paddingBottom: "calc(env(safe-area-inset-bottom) + 18px)" }}
+        className="absolute inset-0 h-[100dvh] w-screen overflow-hidden px-5 text-white"
+        style={{ ...pageBackground, paddingTop: "calc(env(safe-area-inset-top) + 18px)", paddingBottom: "calc(env(safe-area-inset-bottom) + 18px)" }}
       >
-        <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_50%_-10%,rgba(120,140,255,.12),transparent_36%),linear-gradient(180deg,#070911_0%,#05060a_60%,#04050a_100%)]" />
         <section className="relative mx-auto flex h-[calc(100dvh-36px)] max-w-md flex-col justify-center gap-6">
           <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="text-center">
-            <div className="mx-auto mb-7 flex h-16 w-16 items-center justify-center rounded-[1.2rem] bg-[#0f1420] shadow-lg shadow-black/40 ring-1 ring-white/[0.04]">
+            <div className="mx-auto mb-7 flex h-16 w-16 items-center justify-center rounded-[1.2rem]" style={{ background: "#0f1420", boxShadow: "0 16px 36px rgba(0,0,0,0.4)", border: `1px solid ${UI.ring}` }}>
               <div className="relative h-11 w-11">
-                <span className="absolute left-0 top-4 h-4 w-4 rounded-full bg-rose-500 shadow-[0_0_12px_rgba(255,79,115,.45)]" />
-                <span className="absolute right-0 top-1 h-4 w-4 rounded-full bg-sky-400 shadow-[0_0_12px_rgba(77,184,255,.45)]" />
-                <span className="absolute bottom-1 left-1/2 h-4 w-4 -translate-x-1/2 rounded-full bg-lime-400 shadow-[0_0_12px_rgba(155,229,100,.45)]" />
+                <span className="absolute left-0 top-4 h-4 w-4 rounded-full" style={{ background: COLORS[0].hex, boxShadow: "0 0 12px rgba(255,79,115,0.45)" }} />
+                <span className="absolute right-0 top-1 h-4 w-4 rounded-full" style={{ background: COLORS[1].hex, boxShadow: "0 0 12px rgba(77,184,255,0.45)" }} />
+                <span className="absolute bottom-1 left-1/2 h-4 w-4 -translate-x-1/2 rounded-full" style={{ background: COLORS[2].hex, boxShadow: "0 0 12px rgba(155,229,100,0.45)" }} />
               </div>
             </div>
-            <h1 className="mt-2 text-4xl font-bold tracking-[-0.035em] text-white/95" style={{ fontFamily: '"Space Grotesk", "Manrope", "Inter", -apple-system, system-ui, sans-serif' }}>Chain Reactor</h1>
+            <h1 className="mt-2 text-4xl font-bold tracking-[-0.035em]" style={{ color: UI.text, fontFamily: '"Space Grotesk", "Manrope", "Inter", -apple-system, system-ui, sans-serif' }}>Chain Reactor</h1>
           </motion.div>
 
-          <div className="rounded-[1.6rem] bg-[#0b0f18] p-4 shadow-xl shadow-black/50 ring-1 ring-white/[0.04]">
+          <div className="rounded-[1.6rem] p-4" style={{ background: UI.panel, boxShadow: "0 18px 40px rgba(0,0,0,0.5)", border: `1px solid ${UI.ring}` }}>
             <div className="grid gap-3">
               <Stepper label="Players" value={playerCount} min={2} max={8} onChange={(v) => reset(rows, cols, v)} />
               <div className="grid grid-cols-2 gap-3">
@@ -465,18 +517,24 @@ export default function ChainReactorIPhoneApp() {
 
   return (
     <main
-      className="fixed inset-0 h-[100dvh] w-screen overflow-hidden bg-[#05060a] px-3 text-white"
-      style={{ paddingTop: "calc(env(safe-area-inset-top) + 8px)", paddingBottom: "calc(env(safe-area-inset-bottom) + 8px)" }}
+      className="absolute inset-0 h-[100dvh] w-screen overflow-hidden px-3 text-white"
+      style={{ ...pageBackground, paddingTop: "calc(env(safe-area-inset-top) + 8px)", paddingBottom: "calc(env(safe-area-inset-bottom) + 8px)" }}
     >
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_50%_-10%,rgba(120,140,255,.12),transparent_36%),linear-gradient(180deg,#070911_0%,#05060a_60%,#04050a_100%)]" />
       <div className="relative mx-auto flex h-[calc(100dvh-16px)] max-w-md flex-col gap-3">
-        <header className="grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-full bg-[#0c0f17]/90 p-2 shadow-lg shadow-black/40 ring-1 ring-white/[0.04]">
+        <header className="grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-full p-2" style={{ background: "rgba(12,15,23,0.9)", boxShadow: "0 10px 26px rgba(0,0,0,0.4)", border: `1px solid ${UI.ring}` }}>
           <Button kind="secondary" className="px-3 py-2" disabled={busy} onClick={() => setScreen("home")}>Setup</Button>
           <div className="min-w-0 text-center">
-            <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-white/25">Turn</div>
+            <div className="text-[9px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(255,255,255,0.25)" }}>Turn</div>
             <div className="truncate text-lg font-semibold tracking-[-0.035em]" style={{ color: players[activePlayer].hex }}>{players[activePlayer].label}</div>
           </div>
-          <Button kind="ghost" className="flex h-12 w-12 items-center justify-center rounded-full bg-white/[0.03] p-0 ring-1 ring-white/[0.05]" disabled={busy} onClick={() => reset()} aria-label="Reset game">
+          <Button
+            kind="ghost"
+            className="flex h-12 w-12 items-center justify-center rounded-full p-0"
+            disabled={busy}
+            onClick={() => reset()}
+            aria-label="Reset game"
+            style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${UI.ring}` }}
+          >
             <SvgIcon type="refresh" size={24} />
           </Button>
         </header>
@@ -484,8 +542,11 @@ export default function ChainReactorIPhoneApp() {
         <section className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
           <div
             ref={boardRef}
-            className="relative grid gap-2.5 rounded-[1.4rem] bg-[#0b0f18] p-2.5 shadow-xl shadow-black/50 ring-1 ring-white/[0.04]"
+            className="relative grid gap-2.5 rounded-[1.4rem] p-2.5"
             style={{
+              background: UI.panel,
+              boxShadow: "0 18px 40px rgba(0,0,0,0.5)",
+              border: `1px solid ${UI.ring}`,
               gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
               width: `min(96vw, 430px, calc((100dvh - 7.5rem) * ${cols} / ${rows}))`,
             }}
@@ -520,10 +581,11 @@ export default function ChainReactorIPhoneApp() {
               initial={{ opacity: 0, y: 18, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 18, scale: 0.95 }}
-              className="fixed inset-x-4 top-1/2 z-50 mx-auto max-w-sm -translate-y-1/2 rounded-[1.6rem] bg-[#0b0f18] p-5 text-center shadow-xl shadow-black/50 ring-1 ring-white/[0.05] backdrop-blur-xl"
+              className="fixed inset-x-4 top-1/2 z-50 mx-auto max-w-sm -translate-y-1/2 rounded-[1.6rem] p-5 text-center backdrop-blur-xl"
+              style={{ background: UI.panel, boxShadow: "0 18px 40px rgba(0,0,0,0.55)", border: `1px solid ${UI.ring}` }}
             >
               <div className="text-4xl">👑</div>
-              <div className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/38">Winner</div>
+              <div className="mt-2 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: UI.muted }}>Winner</div>
               <div className="mt-1 text-2xl font-semibold tracking-[-0.035em]" style={{ color: players[winner].hex }}>{players[winner].label}</div>
               <div className="mt-4 grid grid-cols-2 gap-2">
                 <Button kind="secondary" onClick={() => setScreen("home")}>Setup</Button>
