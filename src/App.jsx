@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Crown, Play, RotateCcw, Smartphone, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -61,7 +60,7 @@ function boardStats(board, playerCount) {
 }
 
 function assertGameRule(condition, message) {
-  if (!condition) throw new Error(`Orb Reactor self-test failed: ${message}`);
+  if (!condition) throw new Error(`Chain Reaction self-test failed: ${message}`);
 }
 
 function applyBurstStep(board, bursting, owner, rows, cols) {
@@ -78,6 +77,16 @@ function applyBurstStep(board, bursting, owner, rows, cols) {
   });
 
   return next;
+}
+
+function findBurstingCells(board, rows, cols) {
+  const bursting = [];
+  for (let r = 0; r < rows; r += 1) {
+    for (let c = 0; c < cols; c += 1) {
+      if (board[r][c].count >= criticalMass(r, c, rows, cols)) bursting.push([r, c]);
+    }
+  }
+  return bursting;
 }
 
 function runSelfTests() {
@@ -103,13 +112,91 @@ function runSelfTests() {
   assertGameRule(afterBurst[0][1].owner === 0 && afterBurst[0][1].count === 1, "burst should send orb right");
   assertGameRule(afterBurst[1][0].owner === 0 && afterBurst[1][0].count === 1, "burst should send orb down");
 
+  const conversionBoard = createBoard(3, 3);
+  conversionBoard[0][0] = { owner: 0, count: 2 };
+  conversionBoard[0][1] = { owner: 1, count: 1 };
+  const afterConversion = applyBurstStep(conversionBoard, [[0, 0]], 0, 3, 3);
+  assertGameRule(afterConversion[0][1].owner === 0, "burst should convert neighboring enemy cell");
+  assertGameRule(afterConversion[0][1].count === 2, "converted cell should keep its previous orb and receive one more");
+
   const smallBoard = createBoard(2, 2);
   assertGameRule(criticalMass(1, 1, 2, 2) === 2, "2x2 grid cells should all be corners");
+  smallBoard[0][0] = { owner: 0, count: 2 };
+  assertGameRule(findBurstingCells(smallBoard, 2, 2).length === 1, "burst detection should find overloaded cells");
 }
 
-if (typeof window !== "undefined" && !window.__ORB_REACTOR_TESTED__) {
-  window.__ORB_REACTOR_TESTED__ = true;
+if (typeof window !== "undefined" && !window.__CHAIN_REACTION_TESTED__) {
+  window.__CHAIN_REACTION_TESTED__ = true;
   runSelfTests();
+}
+
+function Icon({ type, className = "h-4 w-4" }) {
+  const common = {
+    className,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 2.2,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    "aria-hidden": true,
+  };
+
+  if (type === "play") {
+    return (
+      <svg {...common}>
+        <path d="M8 5v14l11-7z" />
+      </svg>
+    );
+  }
+
+  if (type === "back") {
+    return (
+      <svg {...common}>
+        <path d="M15 18l-6-6 6-6" />
+      </svg>
+    );
+  }
+
+  if (type === "reset") {
+    return (
+      <svg {...common}>
+        <path d="M3 12a9 9 0 1 0 3-6.7" />
+        <path d="M3 4v6h6" />
+      </svg>
+    );
+  }
+
+  if (type === "phone") {
+    return (
+      <svg {...common}>
+        <rect x="7" y="2.8" width="10" height="18.4" rx="2" />
+        <path d="M11 18h2" />
+      </svg>
+    );
+  }
+
+  if (type === "users") {
+    return (
+      <svg {...common}>
+        <path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" />
+        <circle cx="9.5" cy="7" r="4" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    );
+  }
+
+  if (type === "crown") {
+    return (
+      <svg {...common}>
+        <path d="M3 8l4 4 5-7 5 7 4-4-2 11H5L3 8z" />
+        <path d="M5 19h14" />
+      </svg>
+    );
+  }
+
+  return null;
 }
 
 function OrbCluster({ color, total, instability }) {
@@ -232,21 +319,20 @@ function StepperButton({ label, onClick }) {
       onClick={onClick}
       aria-label={label}
     >
-      {label === "decrease" ? "−" : "+"}
+      {label === "decrease" ? "-" : "+"}
     </Button>
   );
 }
 
 export default function ChainReactorModern() {
-  // set favicon + iOS icon dynamically
   React.useEffect(() => {
-    const svgIcon = `data:image/svg+xml,
-      <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>
-        <rect width='64' height='64' rx='14' fill='#0f172a'/>
-        <circle cx='20' cy='34' r='6' fill='#f43f5e'/>
-        <circle cx='44' cy='26' r='6' fill='#0ea5e9'/>
-        <circle cx='32' cy='46' r='6' fill='#84cc16'/>
-      </svg>`;
+    const svgIcon = `data:image/svg+xml,${encodeURIComponent(`
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <rect width="64" height="64" rx="14" fill="#0f172a"/>
+        <circle cx="20" cy="34" r="6" fill="#f43f5e"/>
+        <circle cx="44" cy="26" r="6" fill="#0ea5e9"/>
+        <circle cx="32" cy="46" r="6" fill="#84cc16"/>
+      </svg>`)} `;
 
     const link = document.querySelector("link[rel='icon']") || document.createElement("link");
     link.rel = "icon";
@@ -259,7 +345,16 @@ export default function ChainReactorModern() {
     document.head.appendChild(apple);
 
     document.title = "Chain Reaction";
+
+    const viewport = document.querySelector("meta[name='viewport']") || document.createElement("meta");
+    viewport.name = "viewport";
+    viewport.content = "width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no";
+    document.head.appendChild(viewport);
+
+    const orientationStyle = document.getElementById("orientation-lock-style");
+    if (orientationStyle) orientationStyle.remove();
   }, []);
+
   const [screen, setScreen] = useState("welcome");
   const [rows, setRows] = useState(DEFAULT_ROWS);
   const [cols, setCols] = useState(DEFAULT_COLS);
@@ -295,10 +390,6 @@ export default function ChainReactorModern() {
     setFlyingOrbs([]);
   }
 
-  function updatePlayerCount(count) {
-    resetMatch(rows, cols, Number(count));
-  }
-
   function updatePlayerName(index, value) {
     const next = [...playerNames];
     next[index] = value;
@@ -326,34 +417,6 @@ export default function ChainReactorModern() {
     setScreen("game");
   }
 
-  if (screen === "welcome") {
-    return (
-      <main className="min-h-screen overflow-hidden bg-slate-950 px-4 py-5 text-white sm:px-6">
-        <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,.22),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(244,63,94,.18),transparent_42%)]" />
-        <div className="relative mx-auto flex min-h-[calc(100vh-2.5rem)] max-w-xl items-center justify-center">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35 }}
-            className="w-full text-center"
-          >
-            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-black/30">
-              <div className="relative h-8 w-8">
-                <span className="absolute left-1 top-3 h-3 w-3 rounded-full bg-rose-500" />
-                <span className="absolute right-1 top-2 h-3 w-3 rounded-full bg-sky-500" />
-                <span className="absolute bottom-1 left-1/2 h-3 w-3 -translate-x-1/2 rounded-full bg-lime-500" />
-              </div>
-            </div>
-            <h1 className="text-5xl font-black tracking-tight sm:text-6xl">Chain Reaction</h1>
-            <Button className="mt-7 h-12 w-full rounded-2xl text-base font-black" onClick={() => setScreen("setup")}>
-              <Play className="mr-2 h-5 w-5" /> Continue
-            </Button>
-          </motion.div>
-        </div>
-      </main>
-    );
-  }
-
   function nextLivingPlayer(fromPlayer, nextBoard, nextTurns) {
     const counts = boardStats(nextBoard, playerCount).counts;
 
@@ -371,14 +434,7 @@ export default function ChainReactorModern() {
 
     while (safety < 10000) {
       safety += 1;
-      const bursting = [];
-
-      for (let r = 0; r < rows; r += 1) {
-        for (let c = 0; c < cols; c += 1) {
-          if (current[r][c].count >= criticalMass(r, c, rows, cols)) bursting.push([r, c]);
-        }
-      }
-
+      const bursting = findBurstingCells(current, rows, cols);
       if (bursting.length === 0) break;
 
       const traveling = [];
@@ -437,9 +493,57 @@ export default function ChainReactorModern() {
     setBusy(false);
   }
 
+  if (screen === "welcome") {
+    return (
+      <main
+        className="min-h-screen overflow-hidden bg-slate-950 px-4 py-5 text-white sm:px-6"
+        style={{
+          paddingTop: "calc(env(safe-area-inset-top) + 1rem)",
+          paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)",
+        }}
+      >
+        <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,.22),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(244,63,94,.18),transparent_42%)]" />
+        <div className="relative mx-auto flex min-h-[calc(100vh-2.5rem)] max-w-xl items-center justify-center">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35 }}
+            className="w-full text-center"
+          >
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-black/30">
+              <div className="relative h-8 w-8">
+                <span className="absolute left-1 top-3 h-3 w-3 rounded-full bg-rose-500" />
+                <span className="absolute right-1 top-2 h-3 w-3 rounded-full bg-sky-500" />
+                <span className="absolute bottom-1 left-1/2 h-3 w-3 -translate-x-1/2 rounded-full bg-lime-500" />
+              </div>
+            </div>
+            <h1 className="text-5xl font-black tracking-tight sm:text-6xl">Chain Reaction</h1>
+            <motion.button
+              type="button"
+              onClick={() => setScreen("setup")}
+              whileTap={{ scale: 0.96 }}
+              className="mx-auto mt-8 flex items-center gap-3 rounded-full border border-white/15 bg-white/10 px-6 py-3 text-sm font-black uppercase tracking-[0.18em] text-white backdrop-blur transition hover:bg-white/15"
+            >
+              Continue
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-950">
+                <Icon type="play" className="h-4 w-4" />
+              </span>
+            </motion.button>
+          </motion.div>
+        </div>
+      </main>
+    );
+  }
+
   if (screen === "setup") {
     return (
-      <main className="min-h-screen overflow-hidden bg-slate-950 px-4 py-5 text-white sm:px-6">
+      <main
+        className="min-h-screen overflow-hidden bg-slate-950 px-4 py-5 text-white sm:px-6"
+        style={{
+          paddingTop: "calc(env(safe-area-inset-top) + 1rem)",
+          paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)",
+        }}
+      >
         <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,.22),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(244,63,94,.18),transparent_42%)]" />
         <div className="relative mx-auto flex max-w-5xl flex-col gap-5">
           <section className="grid gap-5 lg:grid-cols-[1fr_1fr]">
@@ -447,7 +551,7 @@ export default function ChainReactorModern() {
               <CardContent className="space-y-5 p-5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xl font-black">
-                    <Users className="h-5 w-5" /> Game options
+                    <Icon type="users" className="h-5 w-5" /> Game options
                   </div>
                   <Button size="sm" variant="secondary" onClick={() => setShowRules(!showRules)}>
                     Rules
@@ -465,7 +569,7 @@ export default function ChainReactorModern() {
 
                 <div className="grid grid-cols-2 gap-2">
                   <Button variant="secondary" onClick={() => resetMatch(9, 6, playerCount)}>
-                    <Smartphone className="mr-2 h-4 w-4" /> Phone 9 x 6
+                    <Icon type="phone" className="mr-2 h-4 w-4" /> Phone 9 x 6
                   </Button>
                   <Button variant="secondary" onClick={() => resetMatch(10, 8, playerCount)}>
                     Tablet 10 x 8
@@ -535,7 +639,7 @@ export default function ChainReactorModern() {
                 </AnimatePresence>
 
                 <Button className="h-12 w-full rounded-2xl text-base font-black" onClick={startGame}>
-                  <Play className="mr-2 h-5 w-5" /> Start game
+                  <Icon type="play" className="mr-2 h-5 w-5" /> Start game
                 </Button>
               </CardContent>
             </Card>
@@ -566,19 +670,25 @@ export default function ChainReactorModern() {
   }
 
   return (
-    <main className="min-h-screen overflow-hidden bg-slate-950 px-2 py-3 text-white sm:px-4">
+    <main
+      className="min-h-screen overflow-hidden bg-slate-950 px-2 py-3 text-white sm:px-4"
+      style={{
+        paddingTop: "calc(env(safe-area-inset-top) + 0.5rem)",
+        paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)",
+      }}
+    >
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,.18),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(244,63,94,.15),transparent_40%)]" />
       <div className="relative mx-auto flex min-h-[calc(100vh-1.5rem)] max-w-4xl flex-col gap-3">
         <header className="flex items-center justify-between rounded-3xl border border-white/10 bg-white/5 px-3 py-2 shadow-2xl backdrop-blur sm:px-4">
           <Button size="sm" variant="secondary" onClick={() => setScreen("setup")} disabled={busy}>
-            <ArrowLeft className="mr-1 h-4 w-4" /> Setup
+            <Icon type="back" className="mr-1 h-4 w-4" /> Setup
           </Button>
           <div className="text-center">
             <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">Turn</div>
             <div className={`text-lg font-black sm:text-2xl ${players[activePlayer].text}`}>{players[activePlayer].displayName}</div>
           </div>
-          <Button size="sm" variant="secondary" onClick={() => resetMatch()} disabled={busy}>
-            <RotateCcw className="h-4 w-4" />
+          <Button size="sm" variant="secondary" onClick={() => resetMatch()} disabled={busy} aria-label="Reset game">
+            <Icon type="reset" className="h-4 w-4" />
           </Button>
         </header>
 
@@ -618,7 +728,7 @@ export default function ChainReactorModern() {
               exit={{ opacity: 0, y: 20, scale: 0.95 }}
               className="fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-3xl border border-white/10 bg-slate-950/90 p-5 text-center shadow-2xl backdrop-blur"
             >
-              <Crown className={`mx-auto mb-2 h-9 w-9 ${players[winner].text}`} />
+              <Icon type="crown" className={`mx-auto mb-2 h-9 w-9 ${players[winner].text}`} />
               <div className="text-xs uppercase tracking-widest text-white/50">Winner</div>
               <div className={`text-3xl font-black ${players[winner].text}`}>{players[winner].displayName}</div>
               <div className="mt-4 grid grid-cols-2 gap-2">
