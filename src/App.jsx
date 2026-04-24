@@ -426,11 +426,11 @@ export default function ChainReactorIPhoneApp() {
   if (screen !== "game") {
     return (
       <main
-        className="min-h-[100dvh] overflow-y-auto bg-[#05060a] px-5 text-white"
+        className="min-h-[100dvh] overflow-hidden bg-[#05060a] px-5 text-white"
         style={{ paddingTop: "calc(env(safe-area-inset-top) + 18px)", paddingBottom: "calc(env(safe-area-inset-bottom) + 18px)" }}
       >
         <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_50%_-10%,rgba(120,140,255,.12),transparent_36%),linear-gradient(180deg,#070911_0%,#05060a_60%,#04050a_100%)]" />
-        <section className="relative mx-auto flex min-h-[calc(100dvh-36px)] max-w-md flex-col justify-center gap-6">
+        <section className="relative mx-auto flex h-[calc(100dvh-36px)] max-w-md flex-col justify-center gap-6">
           <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="text-center">
             <div className="mx-auto mb-7 flex h-16 w-16 items-center justify-center rounded-[1.2rem] bg-[#0f1420] shadow-lg shadow-black/40 ring-1 ring-white/[0.04]">
               <div className="relative h-11 w-11">
@@ -468,7 +468,7 @@ export default function ChainReactorIPhoneApp() {
       className="min-h-[100dvh] overflow-hidden bg-[#05060a] px-3 text-white"
       style={{ paddingTop: "calc(env(safe-area-inset-top) + 8px)", paddingBottom: "calc(env(safe-area-inset-bottom) + 8px)" }}
     >
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_50%_-8%,rgba(86,106,255,.16),transparent_34%),radial-gradient(circle_at_100%_100%,rgba(255,79,115,.075),transparent_34%),linear-gradient(180deg,#0b0e17_0%,#070911_60%,#05060a_100%)]" />
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_50%_-10%,rgba(120,140,255,.12),transparent_36%),linear-gradient(180deg,#070911_0%,#05060a_60%,#04050a_100%)]" />
       <div className="relative mx-auto flex h-[calc(100dvh-16px)] max-w-md flex-col gap-3">
         <header className="grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-full bg-[#0c0f17]/90 p-2 shadow-lg shadow-black/40 ring-1 ring-white/[0.04]">
           <Button kind="secondary" className="px-3 py-2" disabled={busy} onClick={() => setScreen("home")}>Setup</Button>
