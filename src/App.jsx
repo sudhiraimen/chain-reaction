@@ -306,12 +306,12 @@ export default function ChainReactorIPhoneApp() {
     const style = document.createElement("style");
     style.textContent = `
       :root { color-scheme: dark; background: #080b12; font-family: "Manrope", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
-      html, body, #root { margin: 0; width: 100%; min-height: 100%; background: #080b12; overflow: hidden; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
-      body { min-height: 100dvh; }
+      html, body, #root { margin: 0; width: 100%; height: 100%; min-height: 100%; background: #080b12; overflow: hidden; overscroll-behavior: none; position: fixed; inset: 0; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; touch-action: none; }
+      body { min-height: 100dvh; height: 100dvh; }
       button { font: inherit; }
       h1, h2, h3 { font-family: "Space Grotesk", "Manrope", "Inter", -apple-system, BlinkMacSystemFont, system-ui, sans-serif; letter-spacing: -0.025em; }
       .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-      @supports (height: 100svh) { body, #root { min-height: 100svh; } }
+      @supports (height: 100svh) { body, #root { min-height: 100svh; height: 100svh; } }
     `;
     document.head.appendChild(style);
     return () => style.remove();
@@ -426,7 +426,7 @@ export default function ChainReactorIPhoneApp() {
   if (screen !== "game") {
     return (
       <main
-        className="min-h-[100dvh] overflow-hidden bg-[#05060a] px-5 text-white"
+        className="fixed inset-0 h-[100dvh] w-screen overflow-hidden bg-[#05060a] px-5 text-white"
         style={{ paddingTop: "calc(env(safe-area-inset-top) + 18px)", paddingBottom: "calc(env(safe-area-inset-bottom) + 18px)" }}
       >
         <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_50%_-10%,rgba(120,140,255,.12),transparent_36%),linear-gradient(180deg,#070911_0%,#05060a_60%,#04050a_100%)]" />
@@ -465,7 +465,7 @@ export default function ChainReactorIPhoneApp() {
 
   return (
     <main
-      className="min-h-[100dvh] overflow-hidden bg-[#05060a] px-3 text-white"
+      className="fixed inset-0 h-[100dvh] w-screen overflow-hidden bg-[#05060a] px-3 text-white"
       style={{ paddingTop: "calc(env(safe-area-inset-top) + 8px)", paddingBottom: "calc(env(safe-area-inset-bottom) + 8px)" }}
     >
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_50%_-10%,rgba(120,140,255,.12),transparent_36%),linear-gradient(180deg,#070911_0%,#05060a_60%,#04050a_100%)]" />
