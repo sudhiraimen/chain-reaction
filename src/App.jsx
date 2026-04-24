@@ -239,21 +239,39 @@ function IconReset({ className = "" }) {
 
 function AppShell({ children }) {
   useEffect(() => {
-    let viewport = document.querySelector('meta[name="viewport"]');
-    if (!viewport) {
-      viewport = document.createElement("meta");
-      viewport.setAttribute("name", "viewport");
-      document.head.appendChild(viewport);
-    }
-    viewport.setAttribute("content", "width=device-width, initial-scale=1, viewport-fit=cover");
+    const upsertMeta = (selector, attrs) => {
+      let tag = document.querySelector(selector);
+      if (!tag) {
+        tag = document.createElement("meta");
+        document.head.appendChild(tag);
+      }
+      Object.entries(attrs).forEach(([key, value]) => tag.setAttribute(key, value));
+    };
 
-    let themeColor = document.querySelector('meta[name="theme-color"]');
-    if (!themeColor) {
-      themeColor = document.createElement("meta");
-      themeColor.setAttribute("name", "theme-color");
-      document.head.appendChild(themeColor);
-    }
-    themeColor.setAttribute("content", "#111114");
+    upsertMeta('meta[name="viewport"]', {
+      name: "viewport",
+      content: "width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no",
+    });
+
+    upsertMeta('meta[name="theme-color"]', {
+      name: "theme-color",
+      content: "#050507",
+    });
+
+    upsertMeta('meta[name="apple-mobile-web-app-capable"]', {
+      name: "apple-mobile-web-app-capable",
+      content: "yes",
+    });
+
+    upsertMeta('meta[name="mobile-web-app-capable"]', {
+      name: "mobile-web-app-capable",
+      content: "yes",
+    });
+
+    upsertMeta('meta[name="apple-mobile-web-app-status-bar-style"]', {
+      name: "apple-mobile-web-app-status-bar-style",
+      content: "black-translucent",
+    });
   }, []);
 
   return (
@@ -262,13 +280,19 @@ function AppShell({ children }) {
         html, body, #root {
           margin: 0;
           min-height: 100%;
-          background:
-            radial-gradient(circle at 50% -14%, rgba(80,80,92,.42), rgba(5,5,7,.2) 38%, rgba(5,5,7,1) 74%),
-            #050507;
+          width: 100%;
+          background: #050507;
           overscroll-behavior: none;
+        }
+        html {
+          min-height: 100vh;
+          min-height: 100dvh;
         }
         body {
           padding: 0;
+          min-height: 100vh;
+          min-height: 100dvh;
+          overflow: hidden;
         }
         @supports (height: 100dvh) {
           .app-shell-min-height {
@@ -283,8 +307,8 @@ function AppShell({ children }) {
           '"Inter Tight", "SF Pro Display", "Satoshi", -apple-system, BlinkMacSystemFont, system-ui, sans-serif',
       }}
     >
-      <div className="fixed inset-0 bg-[radial-gradient(circle_at_50%_-14%,rgba(80,80,92,.42),rgba(5,5,7,.2)_38%,rgba(5,5,7,1)_74%)]" />
-      <div className="fixed left-0 right-0 top-0 h-[env(safe-area-inset-top)] bg-[radial-gradient(circle_at_50%_0%,rgba(80,80,92,.42),rgba(5,5,7,.72)_70%,rgba(5,5,7,1)_100%)]" />
+      <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_50%_-14%,rgba(80,80,92,.42),rgba(5,5,7,.2)_38%,rgba(5,5,7,1)_74%)]" />
+      <div className="fixed left-0 right-0 top-0 -z-10 h-[calc(env(safe-area-inset-top)+120px)] bg-[radial-gradient(circle_at_50%_0%,rgba(80,80,92,.42),rgba(5,5,7,.72)_70%,rgba(5,5,7,1)_100%)]" />
       <section className="relative mx-auto flex min-h-screen w-full max-w-[430px] flex-col px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))]">
         {children}
       </section>
