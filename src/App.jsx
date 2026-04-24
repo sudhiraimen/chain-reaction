@@ -286,8 +286,7 @@ export default function ChainReactorModern() {
   const [rows, setRows] = useState(DEFAULT_ROWS);
   const [cols, setCols] = useState(DEFAULT_COLS);
   const [playerCount, setPlayerCount] = useState(2);
-  const [playerNames, setPlayerNames] = useState(() => PLAYER_PALETTE.map((_, i) => `Player ${i + 1}`));
-  const [board, setBoard] = useState(() => createBoard(DEFAULT_ROWS, DEFAULT_COLS));
+    const [board, setBoard] = useState(() => createBoard(DEFAULT_ROWS, DEFAULT_COLS));
   const [activePlayer, setActivePlayer] = useState(0);
   const [turnsTaken, setTurnsTaken] = useState(Array(MAX_PLAYERS).fill(0));
   const [busy, setBusy] = useState(false);
@@ -321,7 +320,13 @@ export default function ChainReactorModern() {
     };
   }, [rows, cols, screen]);
 
-  const players = useMemo(() => PLAYER_PALETTE.slice(0, playerCount).map((player, index) => ({ ...player, displayName: playerNames[index]?.trim() || `Player ${index + 1}` })), [playerCount, playerNames]);
+  const players = useMemo(
+    () => PLAYER_PALETTE.slice(0, playerCount).map((player, index) => ({
+      ...player,
+      displayName: `Player ${index + 1}`,
+    })),
+    [playerCount]
+  );
 
   function resetMatch(nextRows = rows, nextCols = cols, nextPlayers = playerCount) {
     setRows(nextRows);
@@ -336,11 +341,6 @@ export default function ChainReactorModern() {
     setFlyingOrbs([]);
   }
 
-  function updatePlayerName(index, value) {
-    const next = [...playerNames];
-    next[index] = value;
-    setPlayerNames(next);
-  }
 
   function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
   function changeRows(delta) { resetMatch(clamp(rows + delta, 5, 14), cols, playerCount); }
@@ -447,8 +447,8 @@ export default function ChainReactorModern() {
     return (
       <main className="setup-scroll min-h-[100dvh] overflow-y-auto overflow-x-hidden bg-slate-950 px-4 text-white sm:px-6" style={{ paddingTop: "calc(env(safe-area-inset-top) + 1rem)", paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)", WebkitOverflowScrolling: "touch" }}>
         <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,.22),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(244,63,94,.18),transparent_42%)]" />
-        <div className="relative mx-auto flex max-w-5xl flex-col gap-5">
-          <section className="grid gap-5 lg:grid-cols-[1fr_1fr]">
+        <div className="relative mx-auto flex max-w-xl flex-col gap-5">
+          <section className="grid gap-5">
             <Card className="text-white"><CardContent className="space-y-5 p-5">
               <div className="flex items-center justify-between"><div className="flex items-center gap-2 text-xl font-black"><Icon type="users" className="h-5 w-5" /> Game options</div><Button size="sm" variant="secondary" onClick={() => setShowRules(!showRules)}>Rules</Button></div>
               <div className="space-y-2 text-white/60"><div className="text-xs font-semibold uppercase tracking-widest text-white/50">Players</div><div className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/30 p-2"><StepperButton label="decrease" onClick={() => changePlayers(-1)} /><div className="min-w-10 text-center text-2xl font-black text-white">{playerCount}</div><StepperButton label="increase" onClick={() => changePlayers(1)} /></div></div>
@@ -459,7 +459,6 @@ export default function ChainReactorModern() {
               <AnimatePresence>{showRules && <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="rounded-3xl border border-white/10 bg-black/20 p-4 text-sm leading-relaxed text-white/70">Place orbs in empty cells or cells you own. Corners explode at 2 orbs, edges at 3, and inner cells at 4. Explosions send one orb to every neighbor, claim those cells, and can trigger chain reactions. Last player with orbs wins.</motion.div>}</AnimatePresence>
               <Button className="h-12 w-full rounded-2xl text-base font-black" onClick={startGame}><Icon type="play" className="mr-2 h-5 w-5" /> Start game</Button>
             </CardContent></Card>
-            <Card className="text-white"><CardContent className="space-y-4 p-5"><div className="text-xl font-black">Player names</div><div className="grid gap-3">{players.map((player, index) => <label key={index} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 p-3"><span className={`h-4 w-4 shrink-0 rounded-full ${player.bg}`} /><input className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-white outline-none placeholder:text-white/30" value={playerNames[index]} maxLength={18} placeholder={`Player ${index + 1}`} onChange={(e) => updatePlayerName(index, e.target.value)} /></label>)}</div></CardContent></Card>
           </section>
         </div>
       </main>
@@ -488,7 +487,7 @@ export default function ChainReactorModern() {
             {players[activePlayer].displayName}
           </div>
         </div>
-        <section className="flex flex-1 items-center justify-center"><div ref={boardRef} className="relative grid w-full max-w-[min(96vw,680px)] gap-1.5 rounded-3xl border border-white/10 bg-slate-900/70 p-2 shadow-2xl backdrop-blur sm:gap-2 sm:p-3" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>{board.map((row, r) => row.map((cell, c) => <Cell key={`${r}-${c}`} cell={cell} row={r} col={c} rows={rows} cols={cols} activePlayer={activePlayer} disabled={busy || winner !== null} onTap={() => placeOrb(r, c)} cellSize={cellSize} />))}<AnimatePresence>{flyingOrbs.map((orb) => <FlyingOrb key={orb.id} orb={orb} rows={rows} cols={cols} cellSize={cellSize} />)}</AnimatePresence></div></section>
+        <section className="flex min-h-0 flex-1 items-center justify-center overflow-hidden"><div ref={boardRef} className="relative grid shrink-0 gap-1.5 rounded-3xl border border-white/10 bg-slate-900/70 p-2 shadow-2xl backdrop-blur sm:gap-2 sm:p-3" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, width: `min(96vw, 680px, calc((100dvh - 15.5rem) * ${cols} / ${rows}))` }}>{board.map((row, r) => row.map((cell, c) => <Cell key={`${r}-${c}`} cell={cell} row={r} col={c} rows={rows} cols={cols} activePlayer={activePlayer} disabled={busy || winner !== null} onTap={() => placeOrb(r, c)} cellSize={cellSize} />))}<AnimatePresence>{flyingOrbs.map((orb) => <FlyingOrb key={orb.id} orb={orb} rows={rows} cols={cols} cellSize={cellSize} />)}</AnimatePresence></div></section>
         <AnimatePresence>{winner !== null && <motion.div initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.95 }} className="fixed inset-x-4 top-1/2 z-50 mx-auto max-w-sm -translate-y-1/2 rounded-3xl border border-white/10 bg-slate-950/90 p-5 text-center shadow-2xl backdrop-blur"><Icon type="crown" className={`mx-auto mb-2 h-9 w-9 ${players[winner].text}`} /><div className="text-xs uppercase tracking-widest text-white/50">Winner</div><div className={`text-3xl font-black ${players[winner].text}`}>{players[winner].displayName}</div><div className="mt-4 grid grid-cols-2 gap-2"><Button variant="secondary" onClick={() => setScreen("setup")}>Setup</Button><Button onClick={() => resetMatch()}>Play again</Button></div></motion.div>}</AnimatePresence>
       </div>
     </main>
