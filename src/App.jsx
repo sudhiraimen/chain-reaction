@@ -549,21 +549,12 @@ function GameScreen({
                   className="relative overflow-hidden rounded-[1.05rem] bg-[#111114] ring-1 ring-white/[.075] transition disabled:opacity-90 active:scale-[.96]"
                   style={{
                     aspectRatio: "1 / 1",
-                    background: owner ? owner.soft : "#111114",
+                    background: "#111114",
                   }}
                   animate={nearCritical ? { y: [0, -1, 0], scale: [1, 1.015, 1] } : { y: 0, scale: 1 }}
                   transition={nearCritical ? { repeat: Infinity, duration: 1.2 } : { duration: 0.18 }}
                 >
-                  {owner && (
-                    <motion.span
-                      key={cell.pulse}
-                      className="absolute inset-0 rounded-[1.05rem]"
-                      initial={{ opacity: 0.24, scale: 0.5 }}
-                      animate={{ opacity: 0, scale: 1.22 }}
-                      transition={{ duration: 0.42 }}
-                      style={{ background: owner.color, opacity: 0.12 }}
-                    />
-                  )}
+                  
                   <OrbCluster count={cell.count} color={owner?.color} cap={cell.cap} />
                 </motion.button>
               );
