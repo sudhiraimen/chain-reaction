@@ -234,25 +234,19 @@ export default function ChainReactorModern() {
       }
 
       body {
-        position: fixed;
-        inset: 0;
         width: 100vw;
-        height: 100vh;
-        height: 100dvh;
+        min-height: 100vh;
+        min-height: 100dvh;
       }
 
       #root {
-        position: fixed;
-        inset: 0;
         width: 100vw;
-        height: 100dvh;
+        min-height: 100dvh;
       }
 
       main {
-        position: fixed;
-        inset: 0;
         width: 100vw;
-        height: 100dvh;
+        min-height: 100dvh;
         overflow: hidden;
         background: transparent !important;
       }
@@ -268,7 +262,7 @@ export default function ChainReactorModern() {
         body,
         #root,
         main {
-          height: 100svh;
+          min-height: 100svh;
         }
       }
 
@@ -434,7 +428,7 @@ export default function ChainReactorModern() {
 
   if (screen === "welcome") {
     return (
-      <main className="setup-scroll h-[100dvh] overflow-y-auto overflow-x-hidden bg-slate-950 px-4 text-white sm:px-6" style={{ paddingTop: "calc(env(safe-area-inset-top) + 1rem)", paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)", WebkitOverflowScrolling: "touch" }}>
+      <main className="setup-scroll min-h-[100dvh] overflow-y-auto overflow-x-hidden bg-slate-950 px-4 text-white sm:px-6" style={{ paddingTop: "calc(env(safe-area-inset-top) + 1rem)", paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)", WebkitOverflowScrolling: "touch" }}>
         <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,.22),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(244,63,94,.18),transparent_42%)]" />
         <div className="relative mx-auto flex min-h-[calc(100vh-2.5rem)] max-w-xl items-center justify-center">
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="w-full text-center">
@@ -451,7 +445,7 @@ export default function ChainReactorModern() {
 
   if (screen === "setup") {
     return (
-      <main className="setup-scroll h-[100dvh] overflow-y-auto overflow-x-hidden bg-slate-950 px-4 text-white sm:px-6" style={{ paddingTop: "calc(env(safe-area-inset-top) + 1rem)", paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)", WebkitOverflowScrolling: "touch" }}>
+      <main className="setup-scroll min-h-[100dvh] overflow-y-auto overflow-x-hidden bg-slate-950 px-4 text-white sm:px-6" style={{ paddingTop: "calc(env(safe-area-inset-top) + 1rem)", paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)", WebkitOverflowScrolling: "touch" }}>
         <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,.22),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(244,63,94,.18),transparent_42%)]" />
         <div className="relative mx-auto flex max-w-5xl flex-col gap-5">
           <section className="grid gap-5 lg:grid-cols-[1fr_1fr]">
@@ -473,7 +467,7 @@ export default function ChainReactorModern() {
   }
 
   return (
-    <main className="h-[100dvh] overflow-hidden bg-slate-950 px-2 text-white sm:px-4" style={{ paddingTop: "calc(env(safe-area-inset-top) + 0.75rem)", paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}>
+    <main className="min-h-[100dvh] overflow-hidden bg-slate-950 px-2 text-white sm:px-4" style={{ paddingTop: "calc(env(safe-area-inset-top) + 0.75rem)", paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}>
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,.18),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(244,63,94,.15),transparent_40%)]" />
       <div className="relative mx-auto flex min-h-[calc(100vh-1.5rem)] max-w-4xl flex-col gap-3">
         <header className="flex items-center justify-between rounded-3xl border border-white/10 bg-white/5 px-3 py-2 shadow-2xl backdrop-blur sm:px-4">
