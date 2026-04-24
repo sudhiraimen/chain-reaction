@@ -1,152 +1,158 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-const PLAYER_PALETTE = [
-  { name: "Neon Rose", bg: "bg-rose-500", text: "text-rose-400", hex: "#f43f5e" },
-  { name: "Sky Pulse", bg: "bg-sky-500", text: "text-sky-400", hex: "#0ea5e9" },
-  { name: "Lime Volt", bg: "bg-lime-500", text: "text-lime-400", hex: "#84cc16" },
-  { name: "Amber Core", bg: "bg-amber-500", text: "text-amber-400", hex: "#f59e0b" },
-  { name: "Violet Nova", bg: "bg-violet-500", text: "text-violet-400", hex: "#8b5cf6" },
-  { name: "Cyan Flux", bg: "bg-cyan-500", text: "text-cyan-400", hex: "#06b6d4" },
-  { name: "Pink Comet", bg: "bg-pink-500", text: "text-pink-400", hex: "#ec4899" },
-  { name: "Emerald Ion", bg: "bg-emerald-500", text: "text-emerald-400", hex: "#10b981" },
+const COLORS = [
+  { name: "Neon Rose", hex: "#fb3b65", text: "text-rose-300" },
+  { name: "Sky Pulse", hex: "#24b6ff", text: "text-sky-300" },
+  { name: "Lime Volt", hex: "#9bef36", text: "text-lime-300" },
+  { name: "Amber Core", hex: "#ffb020", text: "text-amber-300" },
+  { name: "Violet Nova", hex: "#a78bfa", text: "text-violet-300" },
+  { name: "Cyan Flux", hex: "#22d3ee", text: "text-cyan-300" },
+  { name: "Pink Comet", hex: "#f472b6", text: "text-pink-300" },
+  { name: "Emerald Ion", hex: "#34d399", text: "text-emerald-300" },
 ];
 
 const DEFAULT_ROWS = 9;
 const DEFAULT_COLS = 6;
-const MAX_PLAYERS = 8;
-const TRAVEL_MS = 180;
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const TRAVEL_MS = 170;
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function Button({ children, className = "", variant = "primary", size = "md", ...props }) {
-  const base = "inline-flex select-none items-center justify-center rounded-2xl font-black transition disabled:cursor-not-allowed disabled:opacity-50 active:scale-95";
-  const variants = {
-    primary: "bg-white text-slate-950 shadow-lg shadow-white/10 hover:bg-white/90",
-    secondary: "border border-white/10 bg-white/10 text-white shadow-lg shadow-black/10 hover:bg-white/15",
-    ghost: "text-white/70 hover:bg-white/10 hover:text-white",
-  };
-  const sizes = { sm: "h-10 px-3 text-xs", md: "h-12 px-5 text-sm" };
-  return <button className={`${base} ${variants[variant]} ${sizes[size]} ${className}`} {...props}>{children}</button>;
+function makeBoard(rows, cols) {
+  return Array.from({ length: rows }, () =>
+    Array.from({ length: cols }, () => ({ owner: null, count: 0 }))
+  );
 }
 
-function Card({ children, className = "" }) {
-  return <div className={`rounded-[2rem] border border-white/10 bg-white/[0.07] shadow-2xl backdrop-blur-xl ${className}`}>{children}</div>;
-}
-
-function CardContent({ children, className = "" }) {
-  return <div className={className}>{children}</div>;
-}
-
-function createBoard(rows, cols) {
-  return Array.from({ length: rows }, () => Array.from({ length: cols }, () => ({ owner: null, count: 0 })));
-}
-
-function cloneBoard(board) {
+function copyBoard(board) {
   return board.map((row) => row.map((cell) => ({ ...cell })));
 }
 
-function neighborsOf(r, c, rows, cols) {
-  const spots = [];
-  if (r > 0) spots.push([r - 1, c]);
-  if (r < rows - 1) spots.push([r + 1, c]);
-  if (c > 0) spots.push([r, c - 1]);
-  if (c < cols - 1) spots.push([r, c + 1]);
-  return spots;
+function neighbors(r, c, rows, cols) {
+  const out = [];
+  if (r > 0) out.push([r - 1, c]);
+  if (r < rows - 1) out.push([r + 1, c]);
+  if (c > 0) out.push([r, c - 1]);
+  if (c < cols - 1) out.push([r, c + 1]);
+  return out;
 }
 
-function criticalMass(r, c, rows, cols) {
-  return neighborsOf(r, c, rows, cols).length;
+function capacity(r, c, rows, cols) {
+  return neighbors(r, c, rows, cols).length;
 }
 
-function boardStats(board, playerCount) {
+function playerMass(board, playerCount) {
   const counts = Array(playerCount).fill(0);
-  let occupied = 0;
-  board.forEach((row) => row.forEach((cell) => {
-    if (cell.owner !== null && cell.count > 0) {
-      counts[cell.owner] += cell.count;
-      occupied += 1;
+  for (const row of board) {
+    for (const cell of row) {
+      if (cell.owner !== null && cell.count > 0) counts[cell.owner] += cell.count;
     }
-  }));
-  return { counts, occupied };
+  }
+  return counts;
 }
 
-function applyBurstStep(board, bursting, owner, rows, cols) {
-  const next = cloneBoard(board);
-  bursting.forEach(([r, c]) => {
-    const neighbors = neighborsOf(r, c, rows, cols);
+function findCritical(board, rows, cols) {
+  const list = [];
+  for (let r = 0; r < rows; r += 1) {
+    for (let c = 0; c < cols; c += 1) {
+      if (board[r][c].count >= capacity(r, c, rows, cols)) list.push([r, c]);
+    }
+  }
+  return list;
+}
+
+function explode(board, critical, owner, rows, cols) {
+  const next = copyBoard(board);
+  for (const [r, c] of critical) {
     next[r][c] = { owner: null, count: 0 };
-    neighbors.forEach(([nr, nc]) => {
+    for (const [nr, nc] of neighbors(r, c, rows, cols)) {
       next[nr][nc].owner = owner;
       next[nr][nc].count += 1;
-    });
-  });
+    }
+  }
   return next;
 }
 
-function findBurstingCells(board, rows, cols) {
-  const bursting = [];
-  for (let r = 0; r < rows; r += 1) {
-    for (let c = 0; c < cols; c += 1) {
-      if (board[r][c].count >= criticalMass(r, c, rows, cols)) bursting.push([r, c]);
-    }
-  }
-  return bursting;
-}
+function Button({ children, className = "", kind = "primary", ...props }) {
+  const styles =
+    kind === "primary"
+      ? "bg-white text-slate-950 shadow-white/10 hover:bg-white/90"
+      : kind === "ghost"
+      ? "bg-transparent text-white/70 hover:bg-white/10 hover:text-white"
+      : "border border-white/10 bg-white/10 text-white hover:bg-white/15";
 
-function Icon({ type, className = "h-4 w-4" }) {
-  const common = { className, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.25, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true };
-  if (type === "play") return <svg {...common}><path d="M8 5v14l11-7z" /></svg>;
-  if (type === "back") return <svg {...common}><path d="M15 18l-6-6 6-6" /></svg>;
-  if (type === "reset") return <svg {...common}><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v6h6" /></svg>;
-  if (type === "phone") return <svg {...common}><rect x="7" y="2.8" width="10" height="18.4" rx="2" /><path d="M11 18h2" /></svg>;
-  if (type === "users") return <svg {...common}><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" /><circle cx="9.5" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>;
-  if (type === "crown") return <svg {...common}><path d="M3 8l4 4 5-7 5 7 4-4-2 11H5L3 8z" /><path d="M5 19h14" /></svg>;
-  return null;
-}
-
-function OrbCluster({ color, total, instability, cellSize }) {
-  const groupSize = Math.min(total, 3);
-  const spinDuration = instability > 0.85 ? 1.3 : instability > 0.45 ? 2 : 3;
-  const safeCellSize = cellSize || 48;
-  const clusterTarget = safeCellSize * 0.42;
-  const orbSize = groupSize === 1 ? clusterTarget : clusterTarget * 0.7;
-  const radius = groupSize === 1 ? 0 : groupSize === 2 ? clusterTarget * 0.2 : clusterTarget * 0.27;
-  const isUnstable = instability > 0.6;
-  const isCritical = instability > 0.85;
-  const points = Array.from({ length: groupSize }).map((_, index) => {
-    const angle = groupSize === 1 ? 0 : groupSize === 2 ? index * Math.PI : index * ((Math.PI * 2) / 3) - Math.PI / 2;
-    return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
-  });
   return (
-    <motion.span className="absolute left-1/2 top-1/2 h-0 w-0" animate={{ rotate: 360 }} transition={{ duration: spinDuration, repeat: Infinity, ease: "linear" }} style={{ transformOrigin: "0 0" }}>
-      {points.map((point, index) => (
-        <motion.span key={index} className="absolute rounded-full shadow-[0_0_16px_rgba(255,255,255,.28)]" style={{ width: orbSize, height: orbSize, left: point.x, top: point.y, marginLeft: -orbSize / 2, marginTop: -orbSize / 2, background: color }} initial={{ scale: 1 }} animate={{
-  scale: 1,
-  x: isCritical
-    ? [0, -1.4, 1.4, -1, 0]
-    : isUnstable
-    ? [0, -0.7, 0.7, 0]
-    : [0, -0.4, 0.4, 0],
-  y: isCritical
-    ? [0, 1.4, -1.4, 1, 0]
-    : isUnstable
-    ? [0, 0.7, -0.7, 0]
-    : [0, 0.4, -0.4, 0]
-}} transition={{ duration: isCritical ? 0.36 : isUnstable ? 0.65 : 1.1, repeat: Infinity, ease: "easeInOut", delay: index * 0.04 }} />
-      ))}
+    <button
+      className={`touch-manipulation select-none rounded-2xl px-4 py-3 text-sm font-black shadow-lg transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-45 ${styles} ${className}`}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
+function OrbCluster({ color, count, fullness, cellSize }) {
+  const visible = Math.min(count, 3);
+  const base = Math.max(18, cellSize * 0.4);
+  const orb = visible === 1 ? base : base * 0.66;
+  const radius = visible === 1 ? 0 : visible === 2 ? base * 0.22 : base * 0.3;
+  const duration = fullness > 0.85 ? 1.05 : fullness > 0.55 ? 1.65 : 2.5;
+
+  return (
+    <motion.span
+      className="absolute left-1/2 top-1/2 h-0 w-0"
+      animate={{ rotate: 360 }}
+      transition={{ duration, repeat: Infinity, ease: "linear" }}
+      style={{ transformOrigin: "0 0" }}
+    >
+      {Array.from({ length: visible }).map((_, i) => {
+        const angle = visible === 1 ? 0 : visible === 2 ? i * Math.PI : i * ((Math.PI * 2) / 3) - Math.PI / 2;
+        const x = Math.cos(angle) * radius;
+        const y = Math.sin(angle) * radius;
+        return (
+          <motion.span
+            key={i}
+            className="absolute rounded-full shadow-[0_0_18px_rgba(255,255,255,.25)]"
+            style={{
+              width: orb,
+              height: orb,
+              left: x,
+              top: y,
+              marginLeft: -orb / 2,
+              marginTop: -orb / 2,
+              background: color,
+            }}
+            animate={{
+              x: fullness > 0.8 ? [0, -1.8, 1.8, 0] : [0, -0.5, 0.5, 0],
+              y: fullness > 0.8 ? [0, 1.8, -1.8, 0] : [0, 0.5, -0.5, 0],
+              scale: fullness > 0.8 ? [1, 1.05, 0.97, 1] : 1,
+            }}
+            transition={{ duration: fullness > 0.8 ? 0.34 : 0.95, repeat: Infinity, ease: "easeInOut", delay: i * 0.05 }}
+          />
+        );
+      })}
     </motion.span>
   );
 }
 
-function Cell({ cell, row, col, rows, cols, activePlayer, onTap, disabled, cellSize }) {
-  const owner = cell.owner !== null ? PLAYER_PALETTE[cell.owner] : null;
-  const mass = criticalMass(row, col, rows, cols);
-  const isPlayable = !disabled && (cell.owner === null || cell.owner === activePlayer);
-  const instability = cell.count > 0 ? Math.min(1, cell.count / Math.max(1, mass - 1)) : 0;
+function Cell({ cell, r, c, rows, cols, activePlayer, disabled, onTap, cellSize }) {
+  const owned = cell.owner !== null;
+  const canTap = !disabled && (!owned || cell.owner === activePlayer);
+  const cap = capacity(r, c, rows, cols);
+  const fullness = cell.count > 0 ? Math.min(1, cell.count / Math.max(1, cap - 1)) : 0;
+  const color = owned ? COLORS[cell.owner].hex : "transparent";
+
   return (
-    <motion.button type="button" aria-label={`Cell ${row + 1}, ${col + 1}`} onClick={onTap} disabled={!isPlayable} whileTap={isPlayable ? { scale: 0.94 } : undefined} className={`relative aspect-square touch-manipulation rounded-[1rem] border border-white/10 bg-slate-950/75 shadow-inner transition ${isPlayable ? "active:border-white/40" : "cursor-not-allowed opacity-45"}`}>
-      <span className="absolute inset-1 rounded-xl border border-white/5 bg-gradient-to-br from-white/[0.04] to-transparent" />
-      <AnimatePresence>{owner && cell.count > 0 && <OrbCluster key={`${row}-${col}-${cell.owner}-${cell.count}`} color={owner.hex} total={cell.count} instability={instability} cellSize={cellSize} />}</AnimatePresence>
+    <motion.button
+      aria-label={`row ${r + 1}, column ${c + 1}`}
+      disabled={!canTap}
+      onClick={onTap}
+      whileTap={canTap ? { scale: 0.92 } : undefined}
+      className={`relative aspect-square overflow-hidden rounded-[1rem] border bg-slate-950/80 shadow-inner transition ${
+        canTap ? "border-white/12 active:border-white/50" : "border-white/5 opacity-45"
+      }`}
+    >
+      <span className="absolute inset-1 rounded-xl bg-gradient-to-br from-white/[0.055] to-transparent" />
+      {owned && cell.count > 0 && <OrbCluster color={color} count={cell.count} fullness={fullness} cellSize={cellSize} />}
     </motion.button>
   );
 }
@@ -156,290 +162,311 @@ function FlyingOrb({ orb, rows, cols, cellSize }) {
   const fromTop = `${((orb.from.r + 0.5) / rows) * 100}%`;
   const toLeft = `${((orb.to.c + 0.5) / cols) * 100}%`;
   const toTop = `${((orb.to.r + 0.5) / rows) * 100}%`;
-  const orbSize = (cellSize || 48) * 0.28;
+  const size = Math.max(12, cellSize * 0.27);
 
   return (
-    <motion.span className="pointer-events-none absolute z-20 rounded-full shadow-[0_0_14px_rgba(255,255,255,.25)]" style={{ background: orb.color, width: orbSize, height: orbSize, left: fromLeft, top: fromTop, marginLeft: -orbSize / 2, marginTop: -orbSize / 2 }} initial={{ left: fromLeft, top: fromTop, opacity: 1, scale: 1 }} animate={{ left: toLeft, top: toTop, opacity: 1, scale: [1, 1.1, 1] }} exit={{ opacity: 0, scale: 0.8 }} transition={{ duration: TRAVEL_MS / 1000, ease: "easeInOut" }} />
+    <motion.span
+      className="pointer-events-none absolute z-20 rounded-full shadow-[0_0_16px_rgba(255,255,255,.3)]"
+      style={{ background: orb.color, width: size, height: size, left: fromLeft, top: fromTop, marginLeft: -size / 2, marginTop: -size / 2 }}
+      initial={{ left: fromLeft, top: fromTop, opacity: 1, scale: 1 }}
+      animate={{ left: toLeft, top: toTop, opacity: 1, scale: [1, 1.12, 1] }}
+      exit={{ opacity: 0, scale: 0.75 }}
+      transition={{ duration: TRAVEL_MS / 1000, ease: "easeInOut" }}
+    />
   );
 }
 
-function StepperButton({ label, onClick }) {
-  return <Button type="button" size="sm" variant="secondary" className="h-11 w-11 rounded-2xl p-0 text-2xl leading-none" onClick={onClick} aria-label={label}>{label === "decrease" ? "−" : "+"}</Button>;
+function Stepper({ label, value, min, max, onChange }) {
+  return (
+    <div className="rounded-[1.6rem] border border-white/10 bg-black/25 p-3">
+      <div className="mb-2 text-xs font-black uppercase tracking-[0.2em] text-white/45">{label}</div>
+      <div className="flex items-center justify-between">
+        <Button kind="secondary" className="h-11 w-11 rounded-2xl p-0 text-2xl" disabled={value <= min} onClick={() => onChange(value - 1)}>
+          −
+        </Button>
+        <div className="text-3xl font-black">{value}</div>
+        <Button kind="secondary" className="h-11 w-11 rounded-2xl p-0 text-2xl" disabled={value >= max} onClick={() => onChange(value + 1)}>
+          +
+        </Button>
+      </div>
+    </div>
+  );
 }
 
-export default function ChainReactorModern() {
+export default function ChainReactorIPhoneApp() {
+  const [screen, setScreen] = useState("home");
+  const [rows, setRows] = useState(DEFAULT_ROWS);
+  const [cols, setCols] = useState(DEFAULT_COLS);
+  const [playerCount, setPlayerCount] = useState(2);
+  const [board, setBoard] = useState(() => makeBoard(DEFAULT_ROWS, DEFAULT_COLS));
+  const [activePlayer, setActivePlayer] = useState(0);
+  const [turns, setTurns] = useState(Array(8).fill(0));
+  const [busy, setBusy] = useState(false);
+  const [winner, setWinner] = useState(null);
+  const [flying, setFlying] = useState([]);
+  const [cellSize, setCellSize] = useState(48);
+  const boardRef = useRef(null);
+  const stopped = useRef(false);
+
   useEffect(() => {
-    const ensureMeta = (selector, attrs) => {
+    const addMeta = (selector, attrs) => {
       let el = document.querySelector(selector);
       if (!el) {
         el = document.createElement("meta");
         document.head.appendChild(el);
       }
       Object.entries(attrs).forEach(([key, value]) => el.setAttribute(key, value));
-      return el;
     };
 
-    ensureMeta("meta[name='viewport']", {
+    addMeta("meta[name='viewport']", {
       name: "viewport",
       content: "width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, interactive-widget=resizes-content",
     });
-    ensureMeta("meta[name='theme-color']", { name: "theme-color", content: "#020617" });
-    ensureMeta("meta[name='apple-mobile-web-app-capable']", { name: "apple-mobile-web-app-capable", content: "yes" });
-    ensureMeta("meta[name='apple-mobile-web-app-title']", { name: "apple-mobile-web-app-title", content: "Chain Reactor" });
-    ensureMeta("meta[name='apple-mobile-web-app-status-bar-style']", { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" });
-    ensureMeta("meta[name='mobile-web-app-capable']", { name: "mobile-web-app-capable", content: "yes" });
-
-    const styleId = "chain-reaction-ios-pwa-style";
-    let style = document.getElementById(styleId);
-    if (!style) {
-      style = document.createElement("style");
-      style.id = styleId;
-      document.head.appendChild(style);
-    }
-    style.textContent = `
-      :root { color-scheme: dark; background: #020617; }
-      html, body, #root {
-        width: 100%;
-        height: 100%;
-        margin: 0;
-        overflow: hidden;
-        overscroll-behavior: none;
-        -webkit-tap-highlight-color: transparent;
-        -webkit-touch-callout: none;
-        touch-action: manipulation;
-        background:
-          radial-gradient(circle at top left, rgba(14,165,233,.22), transparent 38%),
-          radial-gradient(circle at bottom right, rgba(244,63,94,.18), transparent 42%),
-          #020617;
-      }
-      body {
-        width: 100vw;
-        min-height: 100vh;
-        min-height: 100dvh;
-        position: relative;
-      }
-      #root {
-        width: 100vw;
-        min-height: 100dvh;
-        overflow: hidden;
-      }
-      button, input, select, textarea { font: inherit; }
-      main {
-        width: 100vw;
-        min-height: 100dvh;
-        overflow: hidden;
-        background: transparent !important;
-        transform: translateZ(0);
-      }
-      main.setup-scroll {
-        overflow-y: auto !important;
-        overflow-x: hidden !important;
-        -webkit-overflow-scrolling: touch;
-        overscroll-behavior-y: contain;
-      }
-      @supports (height: 100svh) { body, #root, main { min-height: 100svh; } }
-    `;
+    addMeta("meta[name='theme-color']", { name: "theme-color", content: "#020617" });
+    addMeta("meta[name='apple-mobile-web-app-capable']", { name: "apple-mobile-web-app-capable", content: "yes" });
+    addMeta("meta[name='apple-mobile-web-app-title']", { name: "apple-mobile-web-app-title", content: "Chain Reactor" });
+    addMeta("meta[name='apple-mobile-web-app-status-bar-style']", { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" });
 
     document.title = "Chain Reactor";
+
+    const style = document.createElement("style");
+    style.textContent = `
+      :root { color-scheme: dark; background: #020617; }
+      html, body, #root { margin: 0; width: 100%; min-height: 100%; background: #020617; overflow: hidden; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
+      body { min-height: 100dvh; }
+      button { font: inherit; }
+      @supports (height: 100svh) { body, #root { min-height: 100svh; } }
+    `;
+    document.head.appendChild(style);
+    return () => style.remove();
   }, []);
 
-  const [screen, setScreen] = useState("welcome");
-  const [rows, setRows] = useState(DEFAULT_ROWS);
-  const [cols, setCols] = useState(DEFAULT_COLS);
-  const [playerCount, setPlayerCount] = useState(2);
-  const [board, setBoard] = useState(() => createBoard(DEFAULT_ROWS, DEFAULT_COLS));
-  const [activePlayer, setActivePlayer] = useState(0);
-  const [turnsTaken, setTurnsTaken] = useState(Array(MAX_PLAYERS).fill(0));
-  const [busy, setBusy] = useState(false);
-  const [winner, setWinner] = useState(null);
-  const [showRules, setShowRules] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [flyingOrbs, setFlyingOrbs] = useState([]);
-  const [cellSize, setCellSize] = useState(48);
-  const boardRef = useRef(null);
-  const gameOverRef = useRef(false);
-
   useEffect(() => {
-    if (!boardRef.current) return;
-    const updateCellSize = () => {
-      const firstCell = boardRef.current?.querySelector("button[aria-label^='Cell']");
-      if (!firstCell) return;
-      const rect = firstCell.getBoundingClientRect();
-      if (rect.width > 0) setCellSize(rect.width);
+    const update = () => {
+      const first = boardRef.current?.querySelector("button[aria-label^='row']");
+      if (first) setCellSize(first.getBoundingClientRect().width || 48);
     };
-    updateCellSize();
-    const observer = new ResizeObserver(updateCellSize);
-    observer.observe(boardRef.current);
-    window.addEventListener("resize", updateCellSize);
+    update();
+    window.addEventListener("resize", update);
+    const observer = boardRef.current ? new ResizeObserver(update) : null;
+    if (boardRef.current && observer) observer.observe(boardRef.current);
     return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", updateCellSize);
+      window.removeEventListener("resize", update);
+      observer?.disconnect();
     };
   }, [rows, cols, screen]);
 
-  const players = useMemo(() => PLAYER_PALETTE.slice(0, playerCount).map((player, index) => ({ ...player, displayName: `Player ${index + 1}` })), [playerCount]);
+  const players = useMemo(
+    () => COLORS.slice(0, playerCount).map((p, i) => ({ ...p, label: `Player ${i + 1}` })),
+    [playerCount]
+  );
 
-  function resetMatch(nextRows = rows, nextCols = cols, nextPlayers = playerCount) {
+  function reset(nextRows = rows, nextCols = cols, nextPlayers = playerCount) {
     setRows(nextRows);
     setCols(nextCols);
     setPlayerCount(nextPlayers);
-    setBoard(createBoard(nextRows, nextCols));
+    setBoard(makeBoard(nextRows, nextCols));
     setActivePlayer(0);
-    setTurnsTaken(Array(MAX_PLAYERS).fill(0));
-    setBusy(false);
-    gameOverRef.current = false;
+    setTurns(Array(8).fill(0));
     setWinner(null);
-    setFlyingOrbs([]);
+    setFlying([]);
+    setBusy(false);
+    stopped.current = false;
   }
 
-  function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
-  function changeRows(delta) { resetMatch(clamp(rows + delta, 5, 14), cols, playerCount); }
-  function changeCols(delta) { resetMatch(rows, clamp(cols + delta, 4, 10), playerCount); }
-  function changePlayers(delta) { resetMatch(rows, cols, clamp(playerCount + delta, 2, 8)); }
-  function startGame() { resetMatch(rows, cols, playerCount); setScreen("game"); }
+  function winnerFor(nextBoard, nextTurns) {
+    const mass = playerMass(nextBoard, playerCount);
+    const allPlayed = nextTurns.slice(0, playerCount).every((t) => t > 0);
+    if (!allPlayed) return null;
+    const alive = mass.map((m, i) => ({ m, i })).filter((x) => x.m > 0);
+    return alive.length === 1 ? alive[0].i : null;
+  }
 
-  function nextLivingPlayer(fromPlayer, nextBoard, nextTurns) {
-    const counts = boardStats(nextBoard, playerCount).counts;
+  function nextPlayer(from, nextBoard, nextTurns) {
+    const mass = playerMass(nextBoard, playerCount);
     for (let step = 1; step <= playerCount; step += 1) {
-      const candidate = (fromPlayer + step) % playerCount;
-      if (!(nextTurns[candidate] > 0 && counts[candidate] === 0)) return candidate;
+      const candidate = (from + step) % playerCount;
+      if (!(nextTurns[candidate] > 0 && mass[candidate] === 0)) return candidate;
     }
-    return fromPlayer;
+    return from;
   }
 
-  function getWinnerFromBoard(nextBoard, nextTurns) {
-    const stats = boardStats(nextBoard, playerCount);
-    const living = players.map((_, i) => i).filter((i) => nextTurns[i] === 0 || stats.counts[i] > 0);
-    const playersWhoHaveAppeared = nextTurns.slice(0, playerCount).filter((t) => t > 0).length;
-    return playersWhoHaveAppeared === playerCount && living.length === 1 ? living[0] : null;
-  }
+  async function resolve(startBoard, owner, nextTurns) {
+    let current = copyBoard(startBoard);
+    for (let loop = 0; loop < 8000; loop += 1) {
+      const w = winnerFor(current, nextTurns);
+      if (w !== null) {
+        stopped.current = true;
+        setWinner(w);
+        setFlying([]);
+        return current;
+      }
 
-  async function resolveChain(startBoard, owner, nextTurns) {
-    let current = cloneBoard(startBoard);
-    let safety = 0;
-    while (safety < 10000) {
-      const earlyWinner = getWinnerFromBoard(current, nextTurns);
-      if (earlyWinner !== null) {
-        gameOverRef.current = true;
-        setWinner(earlyWinner);
-        setFlyingOrbs([]);
-        return current;
+      const critical = findCritical(current, rows, cols);
+      if (critical.length === 0) return current;
+
+      const movers = [];
+      for (const [r, c] of critical) {
+        neighbors(r, c, rows, cols).forEach(([nr, nc], i) => {
+          movers.push({ id: `${loop}-${r}-${c}-${nr}-${nc}-${i}`, color: COLORS[owner].hex, from: { r, c }, to: { r: nr, c: nc } });
+        });
       }
-      safety += 1;
-      const bursting = findBurstingCells(current, rows, cols);
-      if (bursting.length === 0) break;
-      const traveling = [];
-      bursting.forEach(([r, c]) => neighborsOf(r, c, rows, cols).forEach(([nr, nc], index) => traveling.push({ id: `${safety}-${r}-${c}-${nr}-${nc}-${index}`, color: PLAYER_PALETTE[owner].hex, from: { r, c }, to: { r: nr, c: nc } })));
-      setFlyingOrbs(traveling);
-      await sleep(TRAVEL_MS);
-      if (gameOverRef.current) return current;
-      current = applyBurstStep(current, bursting, owner, rows, cols);
-      setFlyingOrbs([]);
-      setBoard(cloneBoard(current));
-      const chainWinner = getWinnerFromBoard(current, nextTurns);
-      if (chainWinner !== null) {
-        gameOverRef.current = true;
-        setWinner(chainWinner);
-        setFlyingOrbs([]);
-        return current;
-      }
-      await sleep(45);
-      if (gameOverRef.current) return current;
+
+      setFlying(movers);
+      await wait(TRAVEL_MS);
+      if (stopped.current) return current;
+      current = explode(current, critical, owner, rows, cols);
+      setFlying([]);
+      setBoard(copyBoard(current));
+      await wait(35);
     }
     return current;
   }
 
-  async function placeOrb(r, c) {
+  async function play(r, c) {
     if (busy || winner !== null) return;
-    const target = board[r][c];
-    if (target.owner !== null && target.owner !== activePlayer) return;
+    const cell = board[r][c];
+    if (cell.owner !== null && cell.owner !== activePlayer) return;
+
     setBusy(true);
-    gameOverRef.current = false;
-    const nextTurns = [...turnsTaken];
+    stopped.current = false;
+    const nextTurns = [...turns];
     nextTurns[activePlayer] += 1;
-    setTurnsTaken(nextTurns);
-    const next = cloneBoard(board);
-    next[r][c].owner = activePlayer;
-    next[r][c].count += 1;
+    setTurns(nextTurns);
+
+    const next = copyBoard(board);
+    next[r][c] = { owner: activePlayer, count: next[r][c].count + 1 };
     setBoard(next);
-    const resolved = await resolveChain(next, activePlayer, nextTurns);
-    if (gameOverRef.current) { setBusy(false); return; }
-    const finalWinner = getWinnerFromBoard(resolved, nextTurns);
-    if (finalWinner !== null) {
-      gameOverRef.current = true;
-      setWinner(finalWinner);
-      setBusy(false);
-      setFlyingOrbs([]);
-      return;
+
+    const resolved = await resolve(next, activePlayer, nextTurns);
+    if (!stopped.current) {
+      const w = winnerFor(resolved, nextTurns);
+      if (w !== null) setWinner(w);
+      else setActivePlayer(nextPlayer(activePlayer, resolved, nextTurns));
     }
-    setActivePlayer(nextLivingPlayer(activePlayer, resolved, nextTurns));
     setBusy(false);
   }
 
-  if (screen === "welcome") {
-    return (
-      <main className="setup-scroll min-h-[100dvh] overflow-y-auto overflow-x-hidden bg-slate-950 px-4 text-white" style={{ paddingTop: "calc(env(safe-area-inset-top) + 1rem)", paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)", WebkitOverflowScrolling: "touch" }}>
-        <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,.25),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(244,63,94,.2),transparent_42%)]" />
-        <div className="relative mx-auto flex min-h-[calc(100dvh-2rem)] max-w-sm items-center justify-center">
-          <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="w-full text-center">
-            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-[2rem] border border-white/10 bg-black/25 shadow-2xl backdrop-blur">
-              <div className="relative h-10 w-10"><span className="absolute left-1 top-4 h-4 w-4 rounded-full bg-rose-500 shadow-[0_0_18px_rgba(244,63,94,.75)]" /><span className="absolute right-1 top-2 h-4 w-4 rounded-full bg-sky-500 shadow-[0_0_18px_rgba(14,165,233,.75)]" /><span className="absolute bottom-1 left-1/2 h-4 w-4 -translate-x-1/2 rounded-full bg-lime-500 shadow-[0_0_18px_rgba(132,204,22,.75)]" /></div>
-            </div>
-            <p className="mb-2 text-xs font-black uppercase tracking-[0.28em] text-white/45">iPhone Web App</p>
-            <h1 className="text-5xl font-black tracking-tight">Chain Reactor</h1>
-            <p className="mx-auto mt-4 max-w-xs text-balance text-sm leading-6 text-white/60">Fast local multiplayer, large touch targets, and a board sized for saved-to-home-screen play.</p>
-            <motion.button type="button" onClick={() => setScreen("setup")} whileTap={{ scale: 0.96 }} className="mx-auto mt-8 flex items-center gap-3 rounded-full border border-white/15 bg-white/10 px-6 py-3 text-sm font-black uppercase tracking-[0.18em] text-white backdrop-blur transition hover:bg-white/15">Continue<span className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-slate-950"><Icon type="play" className="h-4 w-4" /></span></motion.button>
-          </motion.div>
-        </div>
-      </main>
-    );
-  }
+  const mass = playerMass(board, playerCount);
 
-  if (screen === "setup") {
+  if (screen !== "game") {
     return (
-      <main className="setup-scroll min-h-[100dvh] overflow-y-auto overflow-x-hidden bg-slate-950 px-4 text-white" style={{ paddingTop: "calc(env(safe-area-inset-top) + 1rem)", paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)", WebkitOverflowScrolling: "touch" }}>
-        <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,.22),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(244,63,94,.18),transparent_42%)]" />
-        <div className="relative mx-auto flex max-w-md flex-col gap-4">
-          <div className="flex items-center justify-between pt-1">
-            <Button size="sm" variant="ghost" onClick={() => setScreen("welcome")}><Icon type="back" className="mr-1 h-4 w-4" /> Back</Button>
-            <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-white/50">PWA ready</span>
+      <main
+        className="min-h-[100dvh] overflow-y-auto bg-slate-950 px-4 text-white"
+        style={{ paddingTop: "calc(env(safe-area-inset-top) + 18px)", paddingBottom: "calc(env(safe-area-inset-bottom) + 18px)" }}
+      >
+        <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(14,165,233,.26),transparent_34%),radial-gradient(circle_at_90%_90%,rgba(244,63,94,.22),transparent_40%)]" />
+        <section className="relative mx-auto flex min-h-[calc(100dvh-36px)] max-w-md flex-col justify-center gap-4">
+          <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="text-center">
+            <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-[2rem] border border-white/10 bg-white/10 shadow-2xl backdrop-blur-xl">
+              <div className="relative h-11 w-11">
+                <span className="absolute left-0 top-4 h-4 w-4 rounded-full bg-rose-500 shadow-[0_0_18px_rgba(251,59,101,.9)]" />
+                <span className="absolute right-0 top-1 h-4 w-4 rounded-full bg-sky-400 shadow-[0_0_18px_rgba(36,182,255,.9)]" />
+                <span className="absolute bottom-1 left-1/2 h-4 w-4 -translate-x-1/2 rounded-full bg-lime-400 shadow-[0_0_18px_rgba(155,239,54,.9)]" />
+              </div>
+            </div>
+            <p className="text-xs font-black uppercase tracking-[0.3em] text-white/40">iPhone Web App</p>
+            <h1 className="mt-2 text-5xl font-black tracking-tight">Chain Reactor</h1>
+            <p className="mx-auto mt-4 max-w-xs text-sm leading-6 text-white/60">Local multiplayer strategy with exploding atoms, fast chain reactions, and big touch targets.</p>
+          </motion.div>
+
+          <div className="rounded-[2rem] border border-white/10 bg-white/[0.07] p-4 shadow-2xl backdrop-blur-xl">
+            <div className="grid gap-3">
+              <Stepper label="Players" value={playerCount} min={2} max={8} onChange={(v) => reset(rows, cols, v)} />
+              <div className="grid grid-cols-2 gap-3">
+                <Button kind="secondary" onClick={() => reset(9, 6, playerCount)}>iPhone grid</Button>
+                <Button kind="secondary" onClick={() => reset(10, 8, playerCount)}>Bigger grid</Button>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Stepper label="Rows" value={rows} min={5} max={14} onChange={(v) => reset(v, cols, playerCount)} />
+                <Stepper label="Columns" value={cols} min={4} max={10} onChange={(v) => reset(rows, v, playerCount)} />
+              </div>
+              <div className="rounded-[1.6rem] border border-white/10 bg-black/20 p-4 text-sm leading-6 text-white/65">
+                Place orbs in empty cells or cells you own. Corners burst at 2, edges at 3, and middle cells at 4. Bursts capture neighbors. Last player standing wins.
+              </div>
+              <Button className="h-14 text-base" onClick={() => { reset(rows, cols, playerCount); setScreen("game"); }}>
+                Start Game
+              </Button>
+            </div>
           </div>
-          <Card className="text-white"><CardContent className="space-y-5 p-5">
-            <div className="flex items-center justify-between"><div className="flex items-center gap-2 text-xl font-black"><Icon type="users" className="h-5 w-5" /> Game options</div><Button size="sm" variant="secondary" onClick={() => setShowRules(!showRules)}>Rules</Button></div>
-            <div className="space-y-2 text-white/60"><div className="text-xs font-black uppercase tracking-widest text-white/45">Players</div><div className="flex items-center justify-between rounded-3xl border border-white/10 bg-black/25 p-2"><StepperButton label="decrease" onClick={() => changePlayers(-1)} /><div className="min-w-10 text-center text-3xl font-black text-white">{playerCount}</div><StepperButton label="increase" onClick={() => changePlayers(1)} /></div></div>
-            <div className="grid grid-cols-2 gap-2"><Button variant="secondary" onClick={() => resetMatch(9, 6, playerCount)}><Icon type="phone" className="mr-2 h-4 w-4" /> Phone</Button><Button variant="secondary" onClick={() => resetMatch(10, 8, playerCount)}>Tablet</Button></div>
-            <Button type="button" variant="secondary" className="w-full rounded-2xl" onClick={() => setShowAdvanced(!showAdvanced)}>{showAdvanced ? "Hide advanced" : "Advanced grid"}</Button>
-            <AnimatePresence>{showAdvanced && <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden"><div className="grid grid-cols-1 gap-3 text-sm"><div className="space-y-2 text-white/60"><div>Rows</div><div className="flex items-center justify-between rounded-3xl border border-white/10 bg-black/25 p-2"><StepperButton label="decrease" onClick={() => changeRows(-1)} /><div className="min-w-10 text-center text-2xl font-black text-white">{rows}</div><StepperButton label="increase" onClick={() => changeRows(1)} /></div></div><div className="space-y-2 text-white/60"><div>Columns</div><div className="flex items-center justify-between rounded-3xl border border-white/10 bg-black/25 p-2"><StepperButton label="decrease" onClick={() => changeCols(-1)} /><div className="min-w-10 text-center text-2xl font-black text-white">{cols}</div><StepperButton label="increase" onClick={() => changeCols(1)} /></div></div></div></motion.div>}</AnimatePresence>
-            <div className="grid grid-cols-3 gap-2 rounded-[1.75rem] border border-white/10 bg-black/20 p-3 text-center text-xs text-white/55"><div><div className="text-xl font-black text-white">{rows}×{cols}</div>Grid</div><div><div className="text-xl font-black text-white">{rows * cols}</div>Cells</div><div><div className="text-xl font-black text-white">2–4</div>Mass</div></div>
-            <AnimatePresence>{showRules && <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="rounded-[1.75rem] border border-white/10 bg-black/20 p-4 text-sm leading-relaxed text-white/70">Place orbs in empty cells or cells you own. Corners explode at 2 orbs, edges at 3, and inner cells at 4. Explosions claim neighbors and can trigger chain reactions. Last player with orbs wins.</motion.div>}</AnimatePresence>
-            <Button className="h-14 w-full rounded-[1.35rem] text-base" onClick={startGame}><Icon type="play" className="mr-2 h-5 w-5" /> Start game</Button>
-          </CardContent></Card>
-        </div>
+        </section>
       </main>
     );
   }
 
   return (
-    <main className="min-h-[100dvh] overflow-hidden bg-slate-950 px-2 text-white" style={{ paddingTop: "calc(env(safe-area-inset-top) + 0.55rem)", paddingBottom: "calc(env(safe-area-inset-bottom) + 0.55rem)" }}>
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,.18),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(244,63,94,.15),transparent_40%)]" />
-      <div className="relative mx-auto flex h-[calc(100dvh-1.1rem)] max-w-md flex-col gap-2">
-        <header className="grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-[1.45rem] border border-white/10 bg-white/[0.07] px-2 py-2 shadow-2xl backdrop-blur-xl">
-          <Button size="sm" variant="secondary" onClick={() => setScreen("setup")} disabled={busy} className="rounded-[1rem]"><Icon type="back" className="mr-1 h-4 w-4" /> Setup</Button>
+    <main
+      className="min-h-[100dvh] overflow-hidden bg-slate-950 px-2 text-white"
+      style={{ paddingTop: "calc(env(safe-area-inset-top) + 8px)", paddingBottom: "calc(env(safe-area-inset-bottom) + 8px)" }}
+    >
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_10%_0%,rgba(14,165,233,.2),transparent_34%),radial-gradient(circle_at_90%_92%,rgba(244,63,94,.18),transparent_42%)]" />
+      <div className="relative mx-auto flex h-[calc(100dvh-16px)] max-w-md flex-col gap-2">
+        <header className="grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-[1.45rem] border border-white/10 bg-white/[0.07] p-2 shadow-2xl backdrop-blur-xl">
+          <Button kind="secondary" className="px-3 py-2" disabled={busy} onClick={() => setScreen("home")}>Setup</Button>
           <div className="min-w-0 text-center">
-            <div className="text-[9px] font-black uppercase tracking-[0.22em] text-white/35">Turn</div>
-            <div className={`truncate text-lg font-black leading-tight ${players[activePlayer].text}`}>{players[activePlayer].displayName}</div>
+            <div className="text-[9px] font-black uppercase tracking-[0.22em] text-white/35">Current turn</div>
+            <div className="truncate text-lg font-black" style={{ color: players[activePlayer].hex }}>{players[activePlayer].label}</div>
           </div>
-          <Button size="sm" variant="secondary" onClick={() => resetMatch()} disabled={busy} aria-label="Reset game" className="h-10 w-10 rounded-[1rem] p-0"><Icon type="reset" className="h-4 w-4" /></Button>
+          <Button kind="secondary" className="h-10 w-10 px-0 py-0" disabled={busy} onClick={() => reset()}>↻</Button>
         </header>
 
         <section className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
-          <div ref={boardRef} className="relative grid shrink-0 gap-1.5 rounded-[1.65rem] border border-white/10 bg-slate-900/75 p-2 shadow-2xl backdrop-blur-xl" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, width: `min(96vw, 430px, calc((100dvh - 6rem) * ${cols} / ${rows}))` }}>
-            {board.map((row, r) => row.map((cell, c) => <Cell key={`${r}-${c}`} cell={cell} row={r} col={c} rows={rows} cols={cols} activePlayer={activePlayer} disabled={busy || winner !== null} onTap={() => placeOrb(r, c)} cellSize={cellSize} />))}
-            <AnimatePresence>{flyingOrbs.map((orb) => <FlyingOrb key={orb.id} orb={orb} rows={rows} cols={cols} cellSize={cellSize} />)}</AnimatePresence>
+          <div
+            ref={boardRef}
+            className="relative grid shrink-0 gap-1.5 rounded-[1.65rem] border border-white/10 bg-slate-900/75 p-2 shadow-2xl backdrop-blur-xl"
+            style={{
+              gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+              width: `min(96vw, 430px, calc((100dvh - 7.5rem) * ${cols} / ${rows}))`,
+            }}
+          >
+            {board.map((row, r) =>
+              row.map((cell, c) => (
+                <Cell
+                  key={`${r}-${c}`}
+                  cell={cell}
+                  r={r}
+                  c={c}
+                  rows={rows}
+                  cols={cols}
+                  activePlayer={activePlayer}
+                  disabled={busy || winner !== null}
+                  onTap={() => play(r, c)}
+                  cellSize={cellSize}
+                />
+              ))
+            )}
+            <AnimatePresence>{flying.map((orb) => <FlyingOrb key={orb.id} orb={orb} rows={rows} cols={cols} cellSize={cellSize} />)}</AnimatePresence>
           </div>
         </section>
 
-        <AnimatePresence>{winner !== null && <motion.div initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.95 }} className="fixed inset-x-4 top-1/2 z-50 mx-auto max-w-sm -translate-y-1/2 rounded-[2rem] border border-white/10 bg-slate-950/90 p-5 text-center shadow-2xl backdrop-blur"><Icon type="crown" className={`mx-auto mb-2 h-9 w-9 ${players[winner].text}`} /><div className="text-xs uppercase tracking-widest text-white/50">Winner</div><div className={`text-3xl font-black ${players[winner].text}`}>{players[winner].displayName}</div><div className="mt-4 grid grid-cols-2 gap-2"><Button variant="secondary" onClick={() => setScreen("setup")}>Setup</Button><Button onClick={() => resetMatch()}>Play again</Button></div></motion.div>}</AnimatePresence>
+        <footer className="grid grid-cols-4 gap-1.5 rounded-[1.45rem] border border-white/10 bg-white/[0.06] p-2 backdrop-blur-xl">
+          {players.slice(0, Math.min(4, playerCount)).map((p, i) => (
+            <div key={p.name} className="rounded-2xl bg-black/20 p-2 text-center">
+              <div className="mx-auto mb-1 h-2 w-8 rounded-full" style={{ background: p.hex }} />
+              <div className="text-[10px] font-black text-white/45">P{i + 1}</div>
+              <div className="text-sm font-black">{mass[i]}</div>
+            </div>
+          ))}
+        </footer>
+
+        <AnimatePresence>
+          {winner !== null && (
+            <motion.div
+              initial={{ opacity: 0, y: 18, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 18, scale: 0.95 }}
+              className="fixed inset-x-4 top-1/2 z-50 mx-auto max-w-sm -translate-y-1/2 rounded-[2rem] border border-white/10 bg-slate-950/92 p-5 text-center shadow-2xl backdrop-blur-xl"
+            >
+              <div className="text-4xl">👑</div>
+              <div className="mt-2 text-xs font-black uppercase tracking-[0.25em] text-white/45">Winner</div>
+              <div className="mt-1 text-3xl font-black" style={{ color: players[winner].hex }}>{players[winner].label}</div>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <Button kind="secondary" onClick={() => setScreen("home")}>Setup</Button>
+                <Button onClick={() => reset()}>Play again</Button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </main>
   );
