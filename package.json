@@ -1,6 +1,7 @@
 {
+  "type": "module",
   "scripts": {
-    "build": "vite"
+    "build": "vite build"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
