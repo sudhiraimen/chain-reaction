@@ -140,20 +140,23 @@ function runLogicTests() {
     expect(original[0][0].owner === null, "original owner should remain unchanged");
   });
 
+  test("player set supports two to four players", () => {
+    expect(PLAYERS.length >= 4, "four local players should be available");
+  });
+
   return results;
 }
 
 function OrbCluster({ count, color, cap }) {
   if (!count) return null;
 
-  // Boost visibility specifically for 2 orbs (was too subtle)
   let instability = Math.min(count / Math.max(cap - 1, 1), 1);
   if (count === 2) instability = Math.max(instability, 0.45);
+
   const duration = Math.max(0.55, 1.8 - instability * 1.05);
   const movement = instability * 3.6;
   const glow = 0.18 + instability * 0.34;
   const isCritical = count >= cap - 1;
-
   const positions = {
     1: [[50, 50]],
     2: [
@@ -262,40 +265,97 @@ function PrimaryButton({ children, className = "", ...props }) {
   );
 }
 
+function ReactorLogo() {
+  return (
+    <div className="relative mx-auto flex h-20 w-20 items-center justify-center">
+      <div className="absolute inset-0 rounded-2xl bg-[#111114] ring-1 ring-white/[.08]" />
+      <div className="absolute inset-2 rounded-xl bg-white/[.03]" />
+      <div className="relative flex h-full w-full items-center justify-center">
+        <span className="absolute left-[35%] top-[40%] h-3 w-3 rounded-full bg-[#0a84ff]" />
+        <span className="absolute right-[35%] top-[40%] h-3 w-3 rounded-full bg-[#ff453a]" />
+        <span className="absolute bottom-[32%] left-1/2 h-3 w-3 -translate-x-1/2 rounded-full bg-[#30d158]" />
+      </div>
+      <div className="absolute inset-0 rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.03)]" />
+    </div>
+  );
+}
+
+function WelcomeOrbShowcase() {
+  return (
+    <div className="relative mx-auto grid h-72 w-72 place-items-center">
+      <motion.div
+        className="absolute h-64 w-64 rounded-full bg-white/[.035] ring-1 ring-white/[.07]"
+        animate={{ scale: [0.96, 1.08, 0.96], opacity: [0.45, 0.95, 0.45] }}
+        transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <motion.div
+        className="absolute h-48 w-48 rounded-full bg-[#0a84ff]/20 blur-2xl"
+        animate={{ scale: [0.85, 1.28, 0.85], opacity: [0.25, 0.8, 0.25] }}
+        transition={{ duration: 2.1, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <motion.div
+        className="absolute h-36 w-36 rounded-full bg-[#ff453a]/10 blur-2xl"
+        animate={{ scale: [1.2, 0.88, 1.2], x: [-14, 14, -14], opacity: [0.28, 0.7, 0.28] }}
+        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+      />
+
+      {[0, 1, 2, 3, 4].map((i) => {
+        const player = PLAYERS[i % PLAYERS.length];
+        const size = i === 0 ? 30 : 22;
+        return (
+          <motion.span
+            key={i}
+            className="absolute rounded-full"
+            style={{
+              width: size,
+              height: size,
+              background: player.color,
+              boxShadow: `0 0 34px ${player.color}99, inset 0 1px 2px rgba(255,255,255,.55)`,
+            }}
+            animate={{
+              x: [0, Math.cos(i * 1.4) * 54, Math.cos(i * 1.4 + 1.4) * 38, 0],
+              y: [0, Math.sin(i * 1.4) * 54, Math.sin(i * 1.4 + 1.4) * 38, 0],
+              scale: [1, 1.28, 0.94, 1.16, 1],
+              opacity: [0.86, 1, 0.9, 1, 0.86],
+            }}
+            transition={{ duration: 2.2 + i * 0.12, repeat: Infinity, ease: "easeInOut", delay: i * 0.08 }}
+          />
+        );
+      })}
+
+      <motion.div
+        className="z-10 h-24 w-24 rounded-full bg-[#f5f5f7] shadow-[0_0_50px_rgba(255,255,255,.35),0_30px_90px_rgba(0,0,0,.55)]"
+        animate={{ scale: [1, 1.16, 0.96, 1.09, 1] }}
+        transition={{ duration: 1.45, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <motion.div
+        className="absolute z-0 h-28 w-28 rounded-full border border-white/[.16]"
+        animate={{ scale: [0.92, 1.45], opacity: [0.8, 0] }}
+        transition={{ duration: 1.45, repeat: Infinity, ease: "easeOut" }}
+      />
+      <motion.div
+        className="absolute z-0 h-28 w-28 rounded-full border border-white/[.10]"
+        animate={{ scale: [0.92, 1.72], opacity: [0.65, 0] }}
+        transition={{ duration: 1.8, repeat: Infinity, ease: "easeOut", delay: 0.25 }}
+      />
+    </div>
+  );
+}
+
 function WelcomeScreen({ onContinue }) {
   return (
     <AppShell>
       <div className="flex flex-1 flex-col justify-between py-8">
-        <div className="pt-8">
-          <h1 className="mt-2 text-[56px] font-semibold leading-[.9] tracking-[-0.06em]">
+        <div className="flex flex-col items-center pt-8 text-center">
+          <ReactorLogo />
+          <h1 className="mt-7 text-[54px] font-semibold leading-[.92] tracking-[-0.065em]">
             Chain
             <br />
-            Reactor
+            Reaction
           </h1>
         </div>
 
-        <div className="relative mx-auto grid h-64 w-64 place-items-center">
-          <motion.div
-            className="absolute h-56 w-56 rounded-full bg-white/[.045] ring-1 ring-white/[.08]"
-            animate={{ scale: [1, 1.06, 1], opacity: [0.65, 1, 0.65] }}
-            transition={{ duration: 4, repeat: Infinity }}
-          />
-          <motion.div
-            className="absolute h-36 w-36 rounded-full bg-[#0a84ff]/20 blur-xl"
-            animate={{ x: [-20, 20, -20], y: [10, -8, 10] }}
-            transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-          />
-          {PLAYERS.map((player, i) => (
-            <motion.span
-              key={player.name}
-              className="absolute h-8 w-8 rounded-full"
-              style={{ background: player.color, boxShadow: `0 16px 40px ${player.color}44` }}
-              animate={{ rotate: 360 }}
-              transition={{ duration: 9 + i, repeat: Infinity, ease: "linear" }}
-            />
-          ))}
-          <div className="z-10 h-20 w-20 rounded-full bg-[#f5f5f7] shadow-[0_30px_80px_rgba(0,0,0,.35)]" />
-        </div>
+        <WelcomeOrbShowcase />
 
         <div className="space-y-4 pb-4">
           <PrimaryButton onClick={onContinue} className="w-full">
@@ -359,7 +419,7 @@ function SetupScreen({ playerCount, setPlayerCount, mode, setMode, onStart, onBa
                 >
                   <span className="text-[15px] font-semibold">{value.label}</span>
                   <span className={mode === key ? "text-[13px] text-[#3a3a3c]" : "text-[13px] text-[#8e8e93]"}>
-                    {value.rows} × {value.cols}
+                    {value.rows} x {value.cols}
                   </span>
                 </button>
               ))}
@@ -408,7 +468,7 @@ export default function ChainReactionGame() {
   useEffect(() => {
     const failedTests = runLogicTests().filter((result) => !result.passed);
     if (failedTests.length) {
-      console.error("Chain Reactor logic tests failed", failedTests);
+      console.error("Chain Reaction logic tests failed", failedTests);
     }
   }, []);
 
