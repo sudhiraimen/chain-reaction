@@ -144,6 +144,12 @@ function runLogicTests() {
     expect(PLAYERS.length >= 4, "four local players should be available");
   });
 
+  test("classic board state exposes rows and cols", () => {
+    const { rows, cols } = BOARD_SIZES.classic;
+    expect(rows === 8, "classic rows should be initialized");
+    expect(cols === 6, "classic cols should be initialized");
+  });
+
   return results;
 }
 
@@ -252,22 +258,12 @@ function AppShell({ children }) {
       name: "viewport",
       content: "width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no",
     });
-
-    upsertMeta('meta[name="theme-color"]', {
-      name: "theme-color",
-      content: "#050507",
-    });
-
+    upsertMeta('meta[name="theme-color"]', { name: "theme-color", content: "#050507" });
     upsertMeta('meta[name="apple-mobile-web-app-capable"]', {
       name: "apple-mobile-web-app-capable",
       content: "yes",
     });
-
-    upsertMeta('meta[name="mobile-web-app-capable"]', {
-      name: "mobile-web-app-capable",
-      content: "yes",
-    });
-
+    upsertMeta('meta[name="mobile-web-app-capable"]', { name: "mobile-web-app-capable", content: "yes" });
     upsertMeta('meta[name="apple-mobile-web-app-status-bar-style"]', {
       name: "apple-mobile-web-app-status-bar-style",
       content: "black-translucent",
@@ -300,19 +296,19 @@ function AppShell({ children }) {
           }
         }
       `}</style>
-    <main
-      className="app-shell-min-height min-h-screen overflow-hidden bg-[#050507] text-[#f5f5f7] antialiased"
-      style={{
-        fontFamily:
-          '"Inter Tight", "SF Pro Display", "Satoshi", -apple-system, BlinkMacSystemFont, system-ui, sans-serif',
-      }}
-    >
-      <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_50%_-14%,rgba(80,80,92,.42),rgba(5,5,7,.2)_38%,rgba(5,5,7,1)_74%)]" />
-      <div className="fixed left-0 right-0 top-0 -z-10 h-[calc(env(safe-area-inset-top)+120px)] bg-[radial-gradient(circle_at_50%_0%,rgba(80,80,92,.42),rgba(5,5,7,.72)_70%,rgba(5,5,7,1)_100%)]" />
-      <section className="relative mx-auto flex min-h-screen w-full max-w-[430px] flex-col px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))]">
-        {children}
-      </section>
-    </main>
+      <main
+        className="app-shell-min-height min-h-screen overflow-hidden bg-[#050507] text-[#f5f5f7] antialiased"
+        style={{
+          fontFamily:
+            '"Inter Tight", "SF Pro Display", "Satoshi", -apple-system, BlinkMacSystemFont, system-ui, sans-serif',
+        }}
+      >
+        <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_50%_-14%,rgba(80,80,92,.42),rgba(5,5,7,.2)_38%,rgba(5,5,7,1)_74%)]" />
+        <div className="fixed left-0 right-0 top-0 -z-10 h-[calc(env(safe-area-inset-top)+120px)] bg-[radial-gradient(circle_at_50%_0%,rgba(80,80,92,.42),rgba(5,5,7,.72)_70%,rgba(5,5,7,1)_100%)]" />
+        <section className="relative mx-auto flex min-h-screen w-full max-w-[430px] flex-col px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))]">
+          {children}
+        </section>
+      </main>
     </>
   );
 }
@@ -361,7 +357,6 @@ function WelcomeOrbShowcase() {
         animate={{ scale: [1.2, 0.88, 1.2], x: [-14, 14, -14], opacity: [0.28, 0.7, 0.28] }}
         transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
       />
-
       {[0, 1, 2, 3, 4].map((i) => {
         const player = PLAYERS[i % PLAYERS.length];
         const size = i === 0 ? 30 : 22;
@@ -385,7 +380,6 @@ function WelcomeOrbShowcase() {
           />
         );
       })}
-
       <motion.div
         className="z-10 h-24 w-24 rounded-full bg-[#f5f5f7] shadow-[0_0_50px_rgba(255,255,255,.35),0_30px_90px_rgba(0,0,0,.55)]"
         animate={{ scale: [1, 1.16, 0.96, 1.09, 1] }}
@@ -417,9 +411,7 @@ function WelcomeScreen({ onContinue }) {
             Reaction
           </h1>
         </div>
-
         <WelcomeOrbShowcase />
-
         <div className="space-y-4 pb-4">
           <PrimaryButton onClick={onContinue} className="w-full">
             Continue
@@ -437,7 +429,6 @@ function SetupScreen({ playerCount, setPlayerCount, mode, setMode, onStart, onBa
         <button onClick={onBack} className="text-[14px] font-semibold text-[#8e8e93] active:scale-95">
           Back
         </button>
-        <p className="text-[13px] font-medium text-[#8e8e93]">Setup</p>
         <div className="w-9" />
       </header>
 
@@ -509,6 +500,133 @@ function SetupScreen({ playerCount, setPlayerCount, mode, setMode, onStart, onBa
   );
 }
 
+function GameScreen({
+  board,
+  rows,
+  cols,
+  players,
+  current,
+  currentPlayer,
+  alive,
+  winner,
+  busy,
+  message,
+  onBack,
+  onPlay,
+  onReset,
+}) {
+  return (
+    <AppShell>
+      <header className="mb-3 flex items-center justify-between">
+        <button
+          onClick={onBack}
+          className="h-10 rounded-full bg-white/[.09] px-4 text-[13px] font-semibold text-[#f5f5f7] ring-1 ring-white/[.10] backdrop-blur-xl active:scale-95"
+        >
+          Back
+        </button>
+        <div />
+      </header>
+
+      <div className="relative w-full pb-3">
+        <div
+          className="grid w-full touch-manipulation select-none gap-[7px] rounded-[2.2rem] bg-white/[.075] p-[10px] shadow-[0_28px_90px_rgba(0,0,0,.48)] ring-1 ring-white/[.10] backdrop-blur-2xl"
+          style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+        >
+          {board.map((row, r) =>
+            row.map((cell, c) => {
+              const owner = cell.owner !== null ? players[cell.owner] : null;
+              const nearCritical = cell.count === cell.cap - 1 && cell.count > 0;
+              return (
+                <motion.button
+                  key={`${r}-${c}`}
+                  onClick={() => onPlay(r, c)}
+                  disabled={busy || winner !== null}
+                  aria-label={`Row ${r + 1}, column ${c + 1}, ${cell.count} of ${cell.cap} orbs`}
+                  className="relative overflow-hidden rounded-[1.05rem] bg-[#111114] ring-1 ring-white/[.075] transition disabled:opacity-90 active:scale-[.96]"
+                  style={{
+                    aspectRatio: "1 / 1",
+                    background: owner ? owner.soft : "#111114",
+                  }}
+                  animate={nearCritical ? { y: [0, -1, 0], scale: [1, 1.015, 1] } : { y: 0, scale: 1 }}
+                  transition={nearCritical ? { repeat: Infinity, duration: 1.2 } : { duration: 0.18 }}
+                >
+                  {owner && (
+                    <motion.span
+                      key={cell.pulse}
+                      className="absolute inset-0 rounded-[1.05rem]"
+                      initial={{ opacity: 0.24, scale: 0.5 }}
+                      animate={{ opacity: 0, scale: 1.22 }}
+                      transition={{ duration: 0.42 }}
+                      style={{ background: owner.color, opacity: 0.12 }}
+                    />
+                  )}
+                  <OrbCluster count={cell.count} color={owner?.color} cap={cell.cap} />
+                </motion.button>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      <div className="mt-auto space-y-3 pb-2">
+        <div className="rounded-[2rem] bg-white/[.075] p-3 shadow-[0_22px_70px_rgba(0,0,0,.42)] ring-1 ring-white/[.10] backdrop-blur-2xl">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ background: current.color }} />
+                <p className="truncate text-[17px] font-semibold tracking-[-.025em]">
+                  {winner === null ? current.name : `${players[winner].name} wins`}
+                </p>
+              </div>
+              <p className="mt-0.5 truncate text-[13px] text-[#8e8e93]">{message}</p>
+            </div>
+            <div className="rounded-full bg-white/[.08] px-3 py-1.5 text-[12px] font-semibold text-[#c7c7cc]">
+              {alive.length}/{players.length}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-center gap-2">
+          {players.map((p, i) => (
+            <div
+              key={p.name}
+              className={`flex items-center gap-2 rounded-full px-3 py-2 ring-1 transition ${
+                i === currentPlayer
+                  ? "bg-white/[.14] ring-white/[.25] scale-[1.05]"
+                  : "bg-white/[.065] ring-white/[.08]"
+              } ${alive.includes(i) ? "opacity-100" : "opacity-35 grayscale"}`}
+            >
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: p.color }} />
+              <span className="text-[12px] font-semibold text-[#c7c7cc]">{p.name}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {winner !== null && (
+          <motion.div
+            className="absolute inset-x-5 top-1/2 rounded-[2.2rem] bg-[#1c1c1e]/90 p-6 text-center shadow-[0_30px_90px_rgba(0,0,0,.55)] ring-1 ring-white/[.10] backdrop-blur-2xl"
+            initial={{ opacity: 0, scale: 0.96, y: "-43%" }}
+            animate={{ opacity: 1, scale: 1, y: "-50%" }}
+            exit={{ opacity: 0, scale: 0.96 }}
+          >
+            <div className="mx-auto mb-4 h-14 w-14 rounded-full" style={{ background: players[winner].color }} />
+            <h2 className="text-[30px] font-semibold tracking-[-.05em]">{players[winner].name} wins</h2>
+            <p className="mt-1 text-[14px] text-[#8e8e93]">Board captured.</p>
+            <button
+              onClick={onReset}
+              className="mt-5 h-11 rounded-full bg-[#f5f5f7] px-6 text-[15px] font-semibold text-[#050507] active:scale-95"
+            >
+              New Game
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </AppShell>
+  );
+}
+
 export default function ChainReactionGame() {
   const [screen, setScreen] = useState("welcome");
   const [mode, setMode] = useState("classic");
@@ -576,7 +694,6 @@ export default function ChainReactionGame() {
     while (guard < 1000) {
       guard += 1;
       const exploding = [];
-
       for (let r = 0; r < rows; r += 1) {
         for (let c = 0; c < cols; c += 1) {
           if (working[r][c].count >= working[r][c].cap) exploding.push([r, c]);
@@ -594,13 +711,11 @@ export default function ChainReactionGame() {
 
       for (const [r, c] of exploding) {
         if (working[r][c].count < working[r][c].cap) continue;
-
         working[r][c].count -= working[r][c].cap;
         if (working[r][c].count <= 0) {
           working[r][c].count = 0;
           working[r][c].owner = null;
         }
-
         for (const [nr, nc] of getNeighbors(r, c, rows, cols)) {
           working[nr][nc].count += 1;
           working[nr][nc].owner = player;
@@ -609,11 +724,7 @@ export default function ChainReactionGame() {
       }
 
       setBoard(cloneBoard(working));
-
-      if (canEndGame && activePlayersOnBoard(working).size <= 1) {
-        break;
-      }
-
+      if (canEndGame && activePlayersOnBoard(working).size <= 1) break;
       await sleep(145);
     }
 
@@ -685,121 +796,20 @@ export default function ChainReactionGame() {
   }
 
   return (
-    <AppShell>
-      <header className="mb-5 flex items-center justify-between">
-        <div>
-          <h1 className="text-[34px] font-semibold tracking-[-0.04em] text-[#f5f5f7]">Chain Reaction</h1>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setScreen("setup")}
-            className="h-10 rounded-full bg-white/[.09] px-4 text-[13px] font-semibold text-[#f5f5f7] ring-1 ring-white/[.10] backdrop-blur-xl active:scale-95"
-          >
-            Setup
-          </button>
-          <button
-            onClick={() => reset()}
-            className="grid h-10 w-10 place-items-center rounded-full bg-white/[.09] text-[#f5f5f7] shadow-[0_18px_50px_rgba(0,0,0,.35)] ring-1 ring-white/[.10] backdrop-blur-xl active:scale-95"
-            aria-label="Reset game"
-          >
-            <IconReset className="h-4 w-4" />
-          </button>
-        </div>
-      </header>
-
-      <div className="mb-4 rounded-[2rem] bg-white/[.075] p-3 shadow-[0_22px_70px_rgba(0,0,0,.42)] ring-1 ring-white/[.10] backdrop-blur-2xl">
-        <div className="flex items-center justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ background: current.color }} />
-              <p className="truncate text-[17px] font-semibold tracking-[-.025em]">
-                {winner === null ? current.name : `${players[winner].name} wins`}
-              </p>
-            </div>
-            <p className="mt-0.5 truncate text-[13px] text-[#8e8e93]">{message}</p>
-          </div>
-          <div className="rounded-full bg-white/[.08] px-3 py-1.5 text-[12px] font-semibold text-[#c7c7cc]">
-            {alive.length}/{players.length}
-          </div>
-        </div>
-      </div>
-
-      <div className="mb-4 flex justify-center gap-2">
-        {players.map((p, i) => (
-          <div
-            key={p.name}
-            className={`flex items-center gap-2 rounded-full bg-white/[.065] px-3 py-2 ring-1 ring-white/[.08] transition ${
-              alive.includes(i) ? "opacity-100" : "opacity-35 grayscale"
-            }`}
-          >
-            <span className="h-2.5 w-2.5 rounded-full" style={{ background: p.color }} />
-            <span className="text-[12px] font-semibold text-[#c7c7cc]">{p.name}</span>
-          </div>
-        ))}
-      </div>
-
-      <div className="relative flex flex-1 items-center justify-center pb-3">
-        <div
-          className="grid w-full touch-manipulation select-none gap-[7px] rounded-[2.2rem] bg-white/[.075] p-[10px] shadow-[0_28px_90px_rgba(0,0,0,.48)] ring-1 ring-white/[.10] backdrop-blur-2xl"
-          style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
-        >
-          {board.map((row, r) =>
-            row.map((cell, c) => {
-              const owner = cell.owner !== null ? players[cell.owner] : null;
-              const nearCritical = cell.count === cell.cap - 1 && cell.count > 0;
-
-              return (
-                <motion.button
-                  key={`${r}-${c}`}
-                  onClick={() => play(r, c)}
-                  disabled={busy || winner !== null}
-                  aria-label={`Row ${r + 1}, column ${c + 1}, ${cell.count} of ${cell.cap} orbs`}
-                  className="relative overflow-hidden rounded-[1.05rem] bg-[#111114] ring-1 ring-white/[.075] transition disabled:opacity-90 active:scale-[.96]"
-                  style={{
-                    aspectRatio: "1 / 1",
-                    background: owner ? owner.soft : "#111114",
-                  }}
-                  animate={nearCritical ? { y: [0, -1, 0], scale: [1, 1.015, 1] } : { y: 0, scale: 1 }}
-                  transition={nearCritical ? { repeat: Infinity, duration: 1.2 } : { duration: 0.18 }}
-                >
-                  {owner && (
-                    <motion.span
-                      key={cell.pulse}
-                      className="absolute inset-0 rounded-[1.05rem]"
-                      initial={{ opacity: 0.24, scale: 0.5 }}
-                      animate={{ opacity: 0, scale: 1.22 }}
-                      transition={{ duration: 0.42 }}
-                      style={{ background: owner.color, opacity: 0.12 }}
-                    />
-                  )}
-                  <OrbCluster count={cell.count} color={owner?.color} cap={cell.cap} />
-                </motion.button>
-              );
-            })
-          )}
-        </div>
-
-        <AnimatePresence>
-          {winner !== null && (
-            <motion.div
-              className="absolute inset-x-5 top-1/2 rounded-[2.2rem] bg-[#1c1c1e]/90 p-6 text-center shadow-[0_30px_90px_rgba(0,0,0,.55)] ring-1 ring-white/[.10] backdrop-blur-2xl"
-              initial={{ opacity: 0, scale: 0.96, y: "-43%" }}
-              animate={{ opacity: 1, scale: 1, y: "-50%" }}
-              exit={{ opacity: 0, scale: 0.96 }}
-            >
-              <div className="mx-auto mb-4 h-14 w-14 rounded-full" style={{ background: players[winner].color }} />
-              <h2 className="text-[30px] font-semibold tracking-[-.05em]">{players[winner].name} wins</h2>
-              <p className="mt-1 text-[14px] text-[#8e8e93]">Board captured.</p>
-              <button
-                onClick={() => reset()}
-                className="mt-5 h-11 rounded-full bg-[#f5f5f7] px-6 text-[15px] font-semibold text-[#050507] active:scale-95"
-              >
-                New Game
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    </AppShell>
+    <GameScreen
+      board={board}
+      rows={rows}
+      cols={cols}
+      players={players}
+      current={current}
+      currentPlayer={currentPlayer}
+      alive={alive}
+      winner={winner}
+      busy={busy}
+      message={message}
+      onBack={() => setScreen("setup")}
+      onPlay={play}
+      onReset={() => reset()}
+    />
   );
 }
