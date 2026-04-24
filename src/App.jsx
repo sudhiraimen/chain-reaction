@@ -511,11 +511,17 @@ function GameScreen({
   winner,
   busy,
   message,
+  flyingOrbs,
   onBack,
   onPlay,
   onReset,
 }) {
   const [confirmReset, setConfirmReset] = useState(false);
+
+  const cellCenter = (r, c) => ({
+    left: `${((c + 0.5) / cols) * 100}%`,
+    top: `${((r + 0.5) / rows) * 100}%`,
+  });
 
   return (
     <AppShell>
@@ -533,7 +539,7 @@ function GameScreen({
 
       <div className="relative flex flex-1 w-full items-center pb-3">
         <div
-          className="grid w-full touch-manipulation select-none gap-[7px] rounded-[2.2rem] bg-white/[.075] p-[10px] shadow-[0_28px_90px_rgba(0,0,0,.48)] ring-1 ring-white/[.10] backdrop-blur-2xl"
+          className="relative grid w-full touch-manipulation select-none gap-[7px] rounded-[2.2rem] bg-white/[.075] p-[10px] shadow-[0_28px_90px_rgba(0,0,0,.48)] ring-1 ring-white/[.10] backdrop-blur-2xl"
           style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
         >
           {board.map((row, r) =>
@@ -554,12 +560,38 @@ function GameScreen({
                   animate={nearCritical ? { y: [0, -1, 0], scale: [1, 1.015, 1] } : { y: 0, scale: 1 }}
                   transition={nearCritical ? { repeat: Infinity, duration: 1.2 } : { duration: 0.18 }}
                 >
-                  
                   <OrbCluster count={cell.count} color={owner?.color} cap={cell.cap} />
                 </motion.button>
               );
             })
           )}
+
+          <div className="pointer-events-none absolute inset-[10px] z-20">
+            <AnimatePresence>
+              {flyingOrbs.map((orb) => {
+                const from = cellCenter(orb.from[0], orb.from[1]);
+                const to = cellCenter(orb.to[0], orb.to[1]);
+                return (
+                  <motion.span
+                    key={orb.id}
+                    className="absolute h-3.5 w-3.5 rounded-full"
+                    style={{
+                      left: from.left,
+                      top: from.top,
+                      background: orb.color,
+                      boxShadow: `0 0 24px ${orb.color}aa, inset 0 1px 2px rgba(255,255,255,.55)`,
+                      translateX: "-50%",
+                      translateY: "-50%",
+                    }}
+                    initial={{ scale: 1, opacity: 0.95 }}
+                    animate={{ left: to.left, top: to.top, scale: 1, opacity: [0.95, 1, 0.15] }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.28, ease: "easeOut" }}
+                  />
+                );
+              })}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
 
@@ -666,6 +698,7 @@ export default function ChainReactionGame() {
   const [busy, setBusy] = useState(false);
   const [turns, setTurns] = useState(0);
   const [message, setMessage] = useState("Tap any empty cell.");
+  const [flyingOrbs, setFlyingOrbs] = useState([]);
   const boardRef = useRef(board);
 
   useEffect(() => {
@@ -698,6 +731,7 @@ export default function ChainReactionGame() {
     setBusy(false);
     setTurns(0);
     setMessage("Tap any empty cell.");
+    setFlyingOrbs([]);
     setScreen(nextScreen);
   }
 
@@ -735,18 +769,47 @@ export default function ChainReactionGame() {
       setBoard(cloneBoard(working));
       await sleep(115);
 
+      const burstOrbs = [];
+      const neighborAdds = [];
+
+      // Phase 1: remove the exploding orbs from their source cells first.
+      // This prevents the source cell and flying orbs from both being visible at once.
       for (const [r, c] of exploding) {
         if (working[r][c].count < working[r][c].cap) continue;
+
+        const neighbors = getNeighbors(r, c, rows, cols);
+        for (const [nr, nc] of neighbors) {
+          burstOrbs.push({
+            id: `${guard}-${r}-${c}-${nr}-${nc}-${Math.random()}`,
+            from: [r, c],
+            to: [nr, nc],
+            color: PLAYERS[player].color,
+          });
+          neighborAdds.push([nr, nc]);
+        }
+
         working[r][c].count -= working[r][c].cap;
         if (working[r][c].count <= 0) {
           working[r][c].count = 0;
           working[r][c].owner = null;
         }
-        for (const [nr, nc] of getNeighbors(r, c, rows, cols)) {
-          working[nr][nc].count += 1;
-          working[nr][nc].owner = player;
-          working[nr][nc].pulse += 1;
-        }
+        working[r][c].pulse += 1;
+      }
+
+      setBoard(cloneBoard(working));
+
+      // Phase 2: animate the orbs traveling to adjacent cells.
+      if (burstOrbs.length) {
+        setFlyingOrbs(burstOrbs);
+        await sleep(260);
+        setFlyingOrbs([]);
+      }
+
+      // Phase 3: apply the received orbs after the travel animation finishes.
+      for (const [nr, nc] of neighborAdds) {
+        working[nr][nc].count += 1;
+        working[nr][nc].owner = player;
+        working[nr][nc].pulse += 1;
       }
 
       setBoard(cloneBoard(working));
@@ -833,6 +896,7 @@ export default function ChainReactionGame() {
       winner={winner}
       busy={busy}
       message={message}
+      flyingOrbs={flyingOrbs}
       onBack={() => setScreen("setup")}
       onPlay={play}
       onReset={() => reset()}
