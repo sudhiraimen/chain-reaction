@@ -254,19 +254,56 @@ function AppShell({ children }) {
       Object.entries(attrs).forEach(([key, value]) => tag.setAttribute(key, value));
     };
 
+    const upsertLink = (selector, attrs) => {
+      let tag = document.querySelector(selector);
+      if (!tag) {
+        tag = document.createElement("link");
+        document.head.appendChild(tag);
+      }
+      Object.entries(attrs).forEach(([key, value]) => tag.setAttribute(key, value));
+    };
+
     upsertMeta('meta[name="viewport"]', {
       name: "viewport",
       content: "width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no",
     });
-    upsertMeta('meta[name="theme-color"]', { name: "theme-color", content: "#050507" });
+
+    upsertMeta('meta[name="theme-color"]', {
+      name: "theme-color",
+      content: "#050507",
+    });
+
     upsertMeta('meta[name="apple-mobile-web-app-capable"]', {
       name: "apple-mobile-web-app-capable",
       content: "yes",
     });
-    upsertMeta('meta[name="mobile-web-app-capable"]', { name: "mobile-web-app-capable", content: "yes" });
+
+    upsertMeta('meta[name="mobile-web-app-capable"]', {
+      name: "mobile-web-app-capable",
+      content: "yes",
+    });
+
     upsertMeta('meta[name="apple-mobile-web-app-status-bar-style"]', {
       name: "apple-mobile-web-app-status-bar-style",
       content: "black-translucent",
+    });
+
+    // Favicons
+    upsertLink('link[rel="icon"]', {
+      rel: "icon",
+      type: "image/png",
+      href: "/favicon.png",
+    });
+
+    upsertLink('link[rel="apple-touch-icon"]', {
+      rel: "apple-touch-icon",
+      href: "/apple-touch-icon.png",
+    });
+
+    // Optional: PWA manifest
+    upsertLink('link[rel="manifest"]', {
+      rel: "manifest",
+      href: "/manifest.json",
     });
   }, []);
 
@@ -297,14 +334,14 @@ function AppShell({ children }) {
         }
       `}</style>
       <main
-        className="app-shell-min-height min-h-screen overflow-hidden bg-[#050507] text-[#f5f5f7] antialiased"
+        className="app-shell-min-height min-h-screen overflow-hidden bg-[#0b0b12] text-[#eaeaf0] antialiased"
         style={{
           fontFamily:
             '"Inter Tight", "SF Pro Display", "Satoshi", -apple-system, BlinkMacSystemFont, system-ui, sans-serif',
         }}
       >
-        <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_50%_-14%,rgba(80,80,92,.42),rgba(5,5,7,.2)_38%,rgba(5,5,7,1)_74%)]" />
-        <div className="fixed left-0 right-0 top-0 -z-10 h-[calc(env(safe-area-inset-top)+120px)] bg-[radial-gradient(circle_at_50%_0%,rgba(80,80,92,.42),rgba(5,5,7,.72)_70%,rgba(5,5,7,1)_100%)]" />
+        <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_20%_10%,rgba(10,132,255,.35),transparent_40%),radial-gradient(circle_at_80%_20%,rgba(255,69,58,.28),transparent_45%),radial-gradient(circle_at_50%_90%,rgba(48,209,88,.25),transparent_50%),#050507]" />
+        <div className="fixed left-0 right-0 top-0 -z-10 h-[calc(env(safe-area-inset-top)+120px)] bg-[radial-gradient(circle_at_50%_0%,rgba(255,69,58,.18),rgba(5,5,7,.72)_70%,rgba(5,5,7,1)_100%)]" />
         <section className="relative mx-auto flex min-h-screen w-full max-w-[430px] flex-col px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))]">
           {children}
         </section>
@@ -327,7 +364,7 @@ function PrimaryButton({ children, className = "", ...props }) {
 function ReactorLogo() {
   return (
     <div className="relative mx-auto flex h-20 w-20 items-center justify-center">
-      <div className="absolute inset-0 rounded-2xl bg-[#111114] ring-1 ring-white/[.08]" />
+      <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-[#161628] to-[#0f0f18] ring-1 ring-white/[.08]" />
       <div className="absolute inset-2 rounded-xl bg-white/[.03]" />
       <div className="relative flex h-full w-full items-center justify-center">
         <span className="absolute left-[35%] top-[40%] h-3 w-3 rounded-full bg-[#0a84ff]" />
@@ -422,8 +459,11 @@ function SetupScreen({ playerCount, setPlayerCount, mode, setMode, onStart, onBa
   return (
     <AppShell>
       <header className="mb-8 flex items-center justify-between pt-2">
-        <button onClick={onBack} className="text-[14px] font-semibold text-[#8e8e93] active:scale-95">
-          Back
+        <button
+          onClick={onBack}
+          className="flex h-10 items-center justify-center rounded-full bg-white/[.09] px-4 text-[15px] font-semibold text-[#eaeaf0] ring-1 ring-white/[.06] backdrop-blur-xl active:scale-95"
+        >
+          <span className="flex items-center leading-none">Back</span>
         </button>
         <div className="w-9" />
       </header>
@@ -435,7 +475,7 @@ function SetupScreen({ playerCount, setPlayerCount, mode, setMode, onStart, onBa
         </div>
 
         <div className="space-y-5">
-          <div className="rounded-[2rem] bg-white/[.075] p-4 ring-1 ring-white/[.09] backdrop-blur-2xl">
+          <div className="rounded-[2rem] bg-gradient-to-br from-[#1a1a2e]/60 via-[#1c1c30]/60 to-[#111118]/80 p-4 ring-1 ring-white/[.09] backdrop-blur-2xl">
             <p className="mb-3 text-[13px] font-semibold text-[#8e8e93]">Players</p>
             <div className="grid grid-cols-3 gap-2">
               {[2, 3, 4].map((n) => (
@@ -445,7 +485,7 @@ function SetupScreen({ playerCount, setPlayerCount, mode, setMode, onStart, onBa
                   className={`h-12 rounded-full text-[15px] font-semibold transition active:scale-95 ${
                     playerCount === n
                       ? "bg-[#f5f5f7] text-[#050507]"
-                      : "bg-white/[.065] text-[#8e8e93] ring-1 ring-white/[.08]"
+                      : "bg-white/[.05] backdrop-blur-xl text-[#8e8e93] ring-1 ring-white/[.08]"
                   }`}
                 >
                   {n}
@@ -454,7 +494,7 @@ function SetupScreen({ playerCount, setPlayerCount, mode, setMode, onStart, onBa
             </div>
           </div>
 
-          <div className="rounded-[2rem] bg-white/[.075] p-4 ring-1 ring-white/[.09] backdrop-blur-2xl">
+          <div className="rounded-[2rem] bg-gradient-to-br from-[#1a1a2e]/60 via-[#1c1c30]/60 to-[#111118]/80 p-4 ring-1 ring-white/[.09] backdrop-blur-2xl">
             <p className="mb-3 text-[13px] font-semibold text-[#8e8e93]">Board</p>
             <div className="space-y-2">
               {Object.entries(BOARD_SIZES).map(([key, value]) => (
@@ -464,7 +504,7 @@ function SetupScreen({ playerCount, setPlayerCount, mode, setMode, onStart, onBa
                   className={`flex w-full items-center justify-between rounded-[1.35rem] px-4 py-3 text-left transition active:scale-[.99] ${
                     mode === key
                       ? "bg-[#f5f5f7] text-[#050507]"
-                      : "bg-white/[.065] text-[#f5f5f7] ring-1 ring-white/[.08]"
+                      : "bg-white/[.05] backdrop-blur-xl text-[#eaeaf0] ring-1 ring-white/[.08]"
                   }`}
                 >
                   <span className="text-[15px] font-semibold">{value.label}</span>
@@ -524,18 +564,17 @@ function GameScreen({
       <header className="mb-3 flex items-center justify-between">
         <button
           onClick={onBack}
-          className="flex h-10 items-center gap-1 rounded-full bg-white/[.09] pl-3 pr-4 text-[15px] font-semibold text-[#f5f5f7] ring-1 ring-white/[.10] backdrop-blur-xl active:scale-95"
+          className="flex h-10 items-center justify-center rounded-full bg-white/[.09] px-4 text-[15px] font-semibold text-[#eaeaf0] ring-1 ring-white/[.06] backdrop-blur-xl active:scale-95"
           aria-label="Back to setup"
         >
-          <span className="text-[22px] leading-none">‹</span>
-          <span>Back</span>
+          <span className="flex items-center leading-none">Back</span>
         </button>
         <div />
       </header>
 
       <div className="relative flex flex-1 w-full items-center pb-3">
         <div
-          className="relative grid w-full touch-manipulation select-none gap-[7px] rounded-[2.2rem] bg-white/[.075] p-[10px] shadow-[0_28px_90px_rgba(0,0,0,.48)] ring-1 ring-white/[.10] backdrop-blur-2xl"
+          className="relative grid w-full touch-manipulation select-none gap-[7px] rounded-[2.2rem] bg-gradient-to-br from-[#1a1a2e]/60 via-[#1c1c30]/60 to-[#111118]/80 p-[10px] shadow-[0_28px_90px_rgba(0,0,0,.48)] ring-1 ring-white/[.06] backdrop-blur-2xl"
           style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
         >
           {board.map((row, r) =>
@@ -548,7 +587,7 @@ function GameScreen({
                   onClick={() => onPlay(r, c)}
                   disabled={busy || winner !== null}
                   aria-label={`Row ${r + 1}, column ${c + 1}, ${cell.count} of ${cell.cap} orbs`}
-                  className="relative overflow-hidden rounded-[1.05rem] bg-[#111114] ring-1 ring-white/[.075] transition disabled:opacity-90 active:scale-[.96]"
+                  className="relative overflow-hidden rounded-[1.05rem] bg-gradient-to-br from-[#161628] to-[#0f0f18] ring-1 ring-white/[.075] transition disabled:opacity-90 active:scale-[.96]"
                   style={{
                     aspectRatio: "1 / 1",
                     background: "#111114",
@@ -592,7 +631,7 @@ function GameScreen({
       </div>
 
       <div className="space-y-3 pb-2">
-        <div className="rounded-[2rem] bg-white/[.075] p-3 shadow-[0_22px_70px_rgba(0,0,0,.42)] ring-1 ring-white/[.10] backdrop-blur-2xl">
+        <div className="rounded-[2rem] bg-gradient-to-br from-[#1a1a2e]/60 via-[#1c1c30]/60 to-[#111118]/80 p-3 shadow-[0_22px_70px_rgba(0,0,0,.42)] ring-1 ring-white/[.06] backdrop-blur-2xl">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -618,8 +657,8 @@ function GameScreen({
               key={p.name}
               className={`flex items-center gap-2 rounded-full px-3 py-2 ring-1 transition ${
                 i === currentPlayer
-                  ? "bg-white/[.14] ring-white/[.25] scale-[1.05]"
-                  : "bg-white/[.065] ring-white/[.08]"
+                  ? "bg-gradient-to-r from-[#0a84ff]/25 to-[#ff453a]/25 ring-white/[.25] scale-[1.05]"
+                  : "bg-white/[.05] backdrop-blur-xl ring-white/[.08]"
               } ${alive.includes(i) ? "opacity-100" : "opacity-35 grayscale"}`}
             >
               <span className="h-2.5 w-2.5 rounded-full" style={{ background: p.color }} />
@@ -632,7 +671,7 @@ function GameScreen({
       <AnimatePresence>
         {confirmReset && (
           <motion.div
-            className="absolute inset-x-5 top-1/2 rounded-[2.2rem] bg-[#1c1c1e]/95 p-6 text-center shadow-[0_30px_90px_rgba(0,0,0,.55)] ring-1 ring-white/[.10] backdrop-blur-2xl"
+            className="absolute inset-x-5 top-1/2 rounded-[2.2rem] bg-[#1c1c1e]/95 p-6 text-center shadow-[0_30px_90px_rgba(0,0,0,.55)] ring-1 ring-white/[.06] backdrop-blur-2xl"
             initial={{ opacity: 0, scale: 0.96, y: "-43%" }}
             animate={{ opacity: 1, scale: 1, y: "-50%" }}
             exit={{ opacity: 0, scale: 0.96 }}
@@ -642,7 +681,7 @@ function GameScreen({
             <div className="mt-5 grid grid-cols-2 gap-2">
               <button
                 onClick={() => setConfirmReset(false)}
-                className="h-11 rounded-full bg-white/[.08] text-[15px] font-semibold text-[#f5f5f7] ring-1 ring-white/[.08] active:scale-95"
+                className="h-11 rounded-full bg-white/[.08] text-[15px] font-semibold text-[#eaeaf0] ring-1 ring-white/[.08] active:scale-95"
               >
                 Cancel
               </button>
@@ -660,7 +699,7 @@ function GameScreen({
         )}
         {winner !== null && (
           <motion.div
-            className="absolute inset-x-5 top-1/2 rounded-[2.2rem] bg-[#1c1c1e]/90 p-6 text-center shadow-[0_30px_90px_rgba(0,0,0,.55)] ring-1 ring-white/[.10] backdrop-blur-2xl"
+            className="absolute inset-x-5 top-1/2 rounded-[2.2rem] bg-[#1c1c1e]/90 p-6 text-center shadow-[0_30px_90px_rgba(0,0,0,.55)] ring-1 ring-white/[.06] backdrop-blur-2xl"
             initial={{ opacity: 0, scale: 0.96, y: "-43%" }}
             animate={{ opacity: 1, scale: 1, y: "-50%" }}
             exit={{ opacity: 0, scale: 0.96 }}
