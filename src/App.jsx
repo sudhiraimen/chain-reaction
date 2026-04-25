@@ -380,20 +380,16 @@ function WelcomeOrbShowcase() {
           />
         );
       })}
+      
       <motion.div
-        className="z-10 h-24 w-24 rounded-full bg-[#f5f5f7] shadow-[0_0_50px_rgba(255,255,255,.35),0_30px_90px_rgba(0,0,0,.55)]"
-        animate={{ scale: [1, 1.16, 0.96, 1.09, 1] }}
-        transition={{ duration: 1.45, repeat: Infinity, ease: "easeInOut" }}
+        className="absolute z-0 h-28 w-28 rounded-full border border-white/[.08]"
+        animate={{ scale: [0.95, 1.4], opacity: [0.5, 0] }}
+        transition={{ duration: 1.6, repeat: Infinity, ease: "easeOut" }}
       />
       <motion.div
-        className="absolute z-0 h-28 w-28 rounded-full border border-white/[.16]"
-        animate={{ scale: [0.92, 1.45], opacity: [0.8, 0] }}
-        transition={{ duration: 1.45, repeat: Infinity, ease: "easeOut" }}
-      />
-      <motion.div
-        className="absolute z-0 h-28 w-28 rounded-full border border-white/[.10]"
-        animate={{ scale: [0.92, 1.72], opacity: [0.65, 0] }}
-        transition={{ duration: 1.8, repeat: Infinity, ease: "easeOut", delay: 0.25 }}
+        className="absolute z-0 h-28 w-28 rounded-full border border-white/[.06]"
+        animate={{ scale: [0.95, 1.7], opacity: [0.4, 0] }}
+        transition={{ duration: 2.0, repeat: Infinity, ease: "easeOut", delay: 0.25 }}
       />
     </div>
   );
