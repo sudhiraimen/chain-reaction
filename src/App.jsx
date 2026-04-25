@@ -1,11 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import React, { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
 
 const PLAYERS = [
-  { name: "Red", color: "#ff453a", soft: "rgba(255,69,58,.08)" },
-  { name: "Blue", color: "#0a84ff", soft: "rgba(10,132,255,.08)" },
-  { name: "Green", color: "#30d158", soft: "rgba(48,209,88,.08)" },
-  { name: "Amber", color: "#ff9f0a", soft: "rgba(255,159,10,.08)" },
+  { name: "Red", color: "#ff4d6d" },
+  { name: "Blue", color: "#3a86ff" },
+  { name: "Green", color: "#06d6a0" },
+  { name: "Yellow", color: "#ffd166" },
 ];
 
 const BOARD_SIZES = {
@@ -14,11 +14,9 @@ const BOARD_SIZES = {
   wide: { label: "Large", rows: 9, cols: 7 },
 };
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-function capacityFor(row, col, rows, cols) {
-  const verticalEdge = row === 0 || row === rows - 1;
-  const horizontalEdge = col === 0 || col === cols - 1;
+function capacityFor(r, c, rows, cols) {
+  const verticalEdge = r === 0 || r === rows - 1;
+  const horizontalEdge = c === 0 || c === cols - 1;
   if (verticalEdge && horizontalEdge) return 2;
   if (verticalEdge || horizontalEdge) return 3;
   return 4;
@@ -30,7 +28,6 @@ function makeBoard(rows, cols) {
       count: 0,
       owner: null,
       cap: capacityFor(r, c, rows, cols),
-      pulse: 0,
     }))
   );
 }
@@ -39,40 +36,66 @@ function cloneBoard(board) {
   return board.map((row) => row.map((cell) => ({ ...cell })));
 }
 
-function getNeighbors(row, col, rows, cols) {
+function getNeighbors(r, c, rows, cols) {
   return [
-    [row - 1, col],
-    [row + 1, col],
-    [row, col - 1],
-    [row, col + 1],
-  ].filter(([r, c]) => r >= 0 && c >= 0 && r < rows && c < cols);
+    [r - 1, c],
+    [r + 1, c],
+    [r, c - 1],
+    [r, c + 1],
+  ].filter(([rr, cc]) => rr >= 0 && cc >= 0 && rr < rows && cc < cols);
 }
 
 function activePlayersOnBoard(board) {
-  const present = new Set();
+  const active = new Set();
   for (const row of board) {
     for (const cell of row) {
-      if (cell.owner !== null && cell.count > 0) present.add(cell.owner);
+      if (cell.owner !== null && cell.count > 0) active.add(cell.owner);
     }
   }
-  return present;
+  return active;
 }
 
-function totalOrbs(board, player) {
-  let total = 0;
-  for (const row of board) {
-    for (const cell of row) {
-      if (cell.owner === player) total += cell.count;
+function resolveBoardAfterMove(startBoard, player, rows, cols) {
+  const board = cloneBoard(startBoard);
+  let guard = 0;
+
+  while (guard < 1000) {
+    guard += 1;
+    const exploding = [];
+
+    for (let r = 0; r < rows; r += 1) {
+      for (let c = 0; c < cols; c += 1) {
+        if (board[r][c].count >= board[r][c].cap) exploding.push([r, c]);
+      }
+    }
+
+    if (!exploding.length) break;
+
+    for (const [r, c] of exploding) {
+      if (board[r][c].count < board[r][c].cap) continue;
+
+      const neighbors = getNeighbors(r, c, rows, cols);
+      board[r][c].count -= board[r][c].cap;
+      if (board[r][c].count <= 0) {
+        board[r][c].count = 0;
+        board[r][c].owner = null;
+      }
+
+      for (const [nr, nc] of neighbors) {
+        board[nr][nc].count += 1;
+        board[nr][nc].owner = player;
+      }
     }
   }
-  return total;
+
+  return board;
 }
 
 function runLogicTests() {
   const results = [];
-  const test = (name, assertion) => {
+  const test = (name, fn) => {
     try {
-      assertion();
+      fn();
       results.push({ name, passed: true });
     } catch (error) {
       results.push({ name, passed: false, error: error.message });
@@ -82,859 +105,557 @@ function runLogicTests() {
     if (!condition) throw new Error(message);
   };
 
-  test("corner capacity", () => {
-    expect(capacityFor(0, 0, 8, 6) === 2, "corner should be 2");
-    expect(capacityFor(7, 5, 8, 6) === 2, "corner should be 2");
+  test("corner cells have capacity 2", () => {
+    expect(capacityFor(0, 0, 8, 6) === 2, "top-left corner should be 2");
+    expect(capacityFor(7, 5, 8, 6) === 2, "bottom-right corner should be 2");
   });
 
-  test("edge capacity", () => {
-    expect(capacityFor(0, 2, 8, 6) === 3, "edge should be 3");
-    expect(capacityFor(4, 5, 8, 6) === 3, "edge should be 3");
+  test("edge cells have capacity 3", () => {
+    expect(capacityFor(0, 2, 8, 6) === 3, "top edge should be 3");
+    expect(capacityFor(4, 5, 8, 6) === 3, "right edge should be 3");
   });
 
-  test("center capacity", () => {
+  test("center cells have capacity 4", () => {
     expect(capacityFor(3, 3, 8, 6) === 4, "center should be 4");
   });
 
-  test("neighbor counts", () => {
-    expect(getNeighbors(0, 0, 8, 6).length === 2, "corner neighbors");
-    expect(getNeighbors(0, 3, 8, 6).length === 3, "edge neighbors");
-    expect(getNeighbors(3, 3, 8, 6).length === 4, "center neighbors");
-  });
-
-  test("board shape", () => {
+  test("board has correct dimensions", () => {
     const board = makeBoard(8, 6);
-    expect(board.length === 8, "rows");
-    expect(board[0].length === 6, "cols");
-    expect(board[0][0].cap === 2, "corner cap");
+    expect(board.length === 8, "board should have 8 rows");
+    expect(board[0].length === 6, "board should have 6 columns");
   });
 
-  test("orb ownership totals", () => {
-    const board = makeBoard(3, 3);
-    board[0][0].owner = 0;
-    board[0][0].count = 2;
-    board[1][1].owner = 1;
-    board[1][1].count = 1;
-    expect(totalOrbs(board, 0) === 2, "player 0 total");
-    expect(totalOrbs(board, 1) === 1, "player 1 total");
-    expect(activePlayersOnBoard(board).size === 2, "active players");
-  });
-
-  test("board presets are valid", () => {
-    for (const preset of Object.values(BOARD_SIZES)) {
-      expect(preset.rows >= 6, "preset rows should be playable");
-      expect(preset.cols >= 5, "preset cols should be playable");
-    }
-  });
-
-  test("empty board has no active players", () => {
-    expect(activePlayersOnBoard(makeBoard(4, 4)).size === 0, "empty board should have no active players");
-  });
-
-  test("cloneBoard does not mutate original", () => {
+  test("cloneBoard creates an independent copy", () => {
     const original = makeBoard(3, 3);
     const copy = cloneBoard(original);
     copy[0][0].count = 1;
-    copy[0][0].owner = 0;
-    expect(original[0][0].count === 0, "original count should remain unchanged");
-    expect(original[0][0].owner === null, "original owner should remain unchanged");
+    expect(original[0][0].count === 0, "original board should not mutate");
   });
 
-  test("player set supports two to four players", () => {
-    expect(PLAYERS.length >= 4, "four local players should be available");
+  test("corner has two neighbors", () => {
+    expect(getNeighbors(0, 0, 8, 6).length === 2, "corner should have 2 neighbors");
   });
 
-  test("classic board state exposes rows and cols", () => {
-    const { rows, cols } = BOARD_SIZES.classic;
-    expect(rows === 8, "classic rows should be initialized");
-    expect(cols === 6, "classic cols should be initialized");
+  test("edge has three neighbors", () => {
+    expect(getNeighbors(0, 2, 8, 6).length === 3, "edge should have 3 neighbors");
+  });
+
+  test("center has four neighbors", () => {
+    expect(getNeighbors(3, 3, 8, 6).length === 4, "center should have 4 neighbors");
+  });
+
+  test("corner explosion splits into adjacent cells", () => {
+    const board = makeBoard(3, 3);
+    board[0][0].count = 2;
+    board[0][0].owner = 0;
+    const resolved = resolveBoardAfterMove(board, 0, 3, 3);
+    expect(resolved[0][0].count === 0, "source corner should clear");
+    expect(resolved[0][1].count === 1, "right neighbor should receive orb");
+    expect(resolved[1][0].count === 1, "bottom neighbor should receive orb");
+    expect(resolved[0][1].owner === 0, "neighbor should convert owner");
+  });
+
+  test("explosion converts opponent cells", () => {
+    const board = makeBoard(3, 3);
+    board[0][0].count = 2;
+    board[0][0].owner = 0;
+    board[0][1].count = 1;
+    board[0][1].owner = 1;
+    const resolved = resolveBoardAfterMove(board, 0, 3, 3);
+    expect(resolved[0][1].owner === 0, "opponent neighbor should convert");
+  });
+
+  test("play again key changes create a fresh board", () => {
+    const board = makeBoard(4, 4);
+    board[0][0].count = 1;
+    const fresh = makeBoard(4, 4);
+    expect(fresh[0][0].count === 0, "fresh board should be empty");
   });
 
   return results;
 }
 
-function OrbCluster({ count, color, cap }) {
-  if (!count) return null;
+function getSystemTheme() {
+  if (typeof window === "undefined" || !window.matchMedia) return "light";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
 
-  let instability = Math.min(count / Math.max(cap - 1, 1), 1);
-  if (count === 2) instability = Math.max(instability, 0.45);
+function useResolvedTheme(themeMode) {
+  const [systemTheme, setSystemTheme] = useState(() => getSystemTheme());
 
-  const duration = Math.max(0.55, 1.8 - instability * 1.05);
-  const movement = instability * 3.6;
-  const glow = 0.18 + instability * 0.34;
-  const isCritical = count >= cap - 1;
-  const positions = {
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return undefined;
+
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const update = () => setSystemTheme(media.matches ? "dark" : "light");
+
+    update();
+    media.addEventListener?.("change", update);
+    return () => media.removeEventListener?.("change", update);
+  }, []);
+
+  return themeMode === "system" ? systemTheme : themeMode;
+}
+
+function Orb({ count, color, cap }) {
+  const offsets = useMemo(
+    () =>
+      Array.from({ length: Math.max(1, Math.min(count || 1, 4)) }, () => ({
+        x: (Math.random() - 0.5) * 6,
+        y: (Math.random() - 0.5) * 6,
+      })),
+    [count, color]
+  );
+
+  if (!count || !color) return null;
+
+  const progress = Math.min(count / Math.max(cap - 1, 1), 1);
+  const pulseScale = 1 + progress * 0.28;
+  const bounce = 1 + progress * 4;
+  const duration = 1.55 - progress * 0.75;
+  const glow = progress > 0.85 ? "dd" : progress > 0.55 ? "bb" : "88";
+  const positionsByCount = {
     1: [[50, 50]],
     2: [
       [40, 50],
       [60, 50],
     ],
     3: [
-      [50, 39],
-      [39, 60],
-      [61, 60],
+      [50, 38],
+      [38, 62],
+      [62, 62],
     ],
     4: [
-      [40, 40],
-      [60, 40],
-      [40, 60],
-      [60, 60],
+      [39, 39],
+      [61, 39],
+      [39, 61],
+      [61, 61],
     ],
-  }[Math.min(count, 4)];
+  };
+  const positions = positionsByCount[Math.min(count, 4)];
 
   return (
-    <motion.div
-      className="absolute inset-0"
-      animate={
-        isCritical
-          ? { rotate: [-0.6, 0.7, -0.5], scale: [1, 1.025, 1] }
-          : { scale: [1, 1 + instability * 0.012, 1] }
-      }
-      transition={{ duration, repeat: Infinity, ease: "easeInOut" }}
-    >
+    <div className="absolute inset-0">
       {positions.map(([x, y], i) => (
         <motion.span
-          key={i}
+          key={`${count}-${i}`}
           className="absolute rounded-full"
           style={{
             left: `${x}%`,
             top: `${y}%`,
-            width: "27%",
-            aspectRatio: "1 / 1",
+            width: 14,
+            height: 14,
             translateX: "-50%",
             translateY: "-50%",
             background: color,
-            boxShadow: `0 10px ${18 + instability * 22}px rgba(255,255,255,${glow * 0.08}), 0 0 ${14 + instability * 28}px ${color}${isCritical ? "88" : "44"}, inset 0 1px 2px rgba(255,255,255,.5)`,
+            boxShadow: `0 6px ${10 + progress * 14}px ${color}${glow}, inset 0 2px 3px rgba(255,255,255,.6)`,
           }}
-          initial={{ scale: 0, opacity: 0 }}
           animate={{
-            scale: isCritical ? [1, 1.13, 0.96, 1.08, 1] : [1, 1 + instability * 0.14, 1],
-            opacity: 1,
-            x: isCritical ? [0, movement, -movement * 0.7, movement * 0.35, 0] : [0, movement * 0.5, 0],
-            y: isCritical ? [0, -movement * 0.6, movement * 0.7, -movement * 0.25, 0] : [0, -movement * 0.45, 0],
+            scale: [1, pulseScale, 1],
+            y: count === 1 ? [0, offsets[i]?.y || 0, 0] : [0, -bounce, 0],
+            x: count === 1 ? [0, offsets[i]?.x || 0, 0] : progress > 0.85 ? [0, i % 2 === 0 ? 2 : -2, 0] : [0, 0, 0],
           }}
-          transition={{
-            scale: { duration, repeat: Infinity, ease: "easeInOut", delay: i * 0.05 },
-            x: { duration: duration * 0.78, repeat: Infinity, ease: "easeInOut", delay: i * 0.07 },
-            y: { duration: duration * 0.9, repeat: Infinity, ease: "easeInOut", delay: i * 0.06 },
-            opacity: { type: "spring", stiffness: 360, damping: 24, delay: i * 0.015 },
-          }}
+          transition={{ duration, repeat: Infinity, ease: "easeInOut", delay: i * 0.08 }}
         />
       ))}
-    </motion.div>
+    </div>
   );
 }
 
-function IconReset({ className = "" }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M3 12a9 9 0 1 0 3-6.7" />
-      <path d="M3 4v6h6" />
-    </svg>
-  );
-}
-
-function AppShell({ children }) {
-  useEffect(() => {
-    const upsertMeta = (selector, attrs) => {
-      let tag = document.querySelector(selector);
-      if (!tag) {
-        tag = document.createElement("meta");
-        document.head.appendChild(tag);
-      }
-      Object.entries(attrs).forEach(([key, value]) => tag.setAttribute(key, value));
-    };
-
-    const upsertLink = (selector, attrs) => {
-      let tag = document.querySelector(selector);
-      if (!tag) {
-        tag = document.createElement("link");
-        document.head.appendChild(tag);
-      }
-      Object.entries(attrs).forEach(([key, value]) => tag.setAttribute(key, value));
-    };
-
-    upsertMeta('meta[name="viewport"]', {
-      name: "viewport",
-      content: "width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no",
-    });
-
-    upsertMeta('meta[name="theme-color"]', {
-      name: "theme-color",
-      content: "#050507",
-    });
-
-    upsertMeta('meta[name="apple-mobile-web-app-capable"]', {
-      name: "apple-mobile-web-app-capable",
-      content: "yes",
-    });
-
-    upsertMeta('meta[name="mobile-web-app-capable"]', {
-      name: "mobile-web-app-capable",
-      content: "yes",
-    });
-
-    upsertMeta('meta[name="apple-mobile-web-app-status-bar-style"]', {
-      name: "apple-mobile-web-app-status-bar-style",
-      content: "black-translucent",
-    });
-
-    // Favicons
-    upsertLink('link[rel="icon"]', {
-      rel: "icon",
-      type: "image/png",
-      href: "/favicon.png",
-    });
-
-    upsertLink('link[rel="apple-touch-icon"]', {
-      rel: "apple-touch-icon",
-      href: "/apple-touch-icon.png",
-    });
-
-    // Optional: PWA manifest
-    upsertLink('link[rel="manifest"]', {
-      rel: "manifest",
-      href: "/manifest.json",
-    });
+function ConfettiBurst() {
+  const pieces = useMemo(() => {
+    const colors = ["#ff4d6d", "#3a86ff", "#06d6a0", "#ffd166", "#58cc02", "#a855f7"];
+    return Array.from({ length: 36 }, (_, i) => ({
+      id: i,
+      color: colors[i % colors.length],
+      x: (Math.random() - 0.5) * 320,
+      y: Math.random() * -260 - 40,
+      rotate: Math.random() * 720 - 360,
+      delay: Math.random() * 0.18,
+    }));
   }, []);
 
   return (
-    <>
-      <style>{`
-        html, body, #root {
-          margin: 0;
-          min-height: 100%;
-          width: 100%;
-          background: #050507;
-          overscroll-behavior: none;
-        }
-        html {
-          min-height: 100vh;
-          min-height: 100dvh;
-        }
-        body {
-          padding: 0;
-          min-height: 100vh;
-          min-height: 100dvh;
-          overflow: hidden;
-        }
-        @supports (height: 100dvh) {
-          .app-shell-min-height {
-            min-height: 100dvh;
-          }
-        }
-      `}</style>
-      <main
-        className="app-shell-min-height min-h-screen overflow-hidden bg-[#0b0b12] text-[#eaeaf0] antialiased"
-        style={{
-          fontFamily:
-            '"Inter Tight", "SF Pro Display", "Satoshi", -apple-system, BlinkMacSystemFont, system-ui, sans-serif',
-        }}
-      >
-        <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_20%_10%,rgba(10,132,255,.35),transparent_40%),radial-gradient(circle_at_80%_20%,rgba(255,69,58,.28),transparent_45%),radial-gradient(circle_at_50%_90%,rgba(48,209,88,.25),transparent_50%),#050507]" />
-        <div className="fixed left-0 right-0 top-0 -z-10 h-[calc(env(safe-area-inset-top)+120px)] bg-[radial-gradient(circle_at_50%_0%,rgba(255,69,58,.18),rgba(5,5,7,.72)_70%,rgba(5,5,7,1)_100%)]" />
-        <section className="relative mx-auto flex min-h-screen w-full max-w-[430px] flex-col px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))]">
-          {children}
-        </section>
-      </main>
-    </>
+    <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-3xl">
+      {pieces.map((piece) => (
+        <motion.span
+          key={piece.id}
+          className="absolute left-1/2 top-1/2 h-3 w-2 rounded-sm"
+          style={{ background: piece.color }}
+          initial={{ x: 0, y: 0, rotate: 0, opacity: 1, scale: 0.8 }}
+          animate={{ x: piece.x, y: piece.y, rotate: piece.rotate, opacity: [1, 1, 0], scale: [1, 1.1, 0.9] }}
+          transition={{ duration: 1.15, ease: "easeOut", delay: piece.delay }}
+        />
+      ))}
+    </div>
   );
 }
 
-function PrimaryButton({ children, className = "", ...props }) {
+function AppShell({ children, theme = "light" }) {
+  const isDark = theme === "dark";
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.documentElement.style.colorScheme = isDark ? "dark" : "light";
+  }, [isDark]);
+
+  return (
+    <main className={`min-h-screen flex items-center justify-center ${isDark ? "bg-[#111827]" : "bg-[#f7f7fb]"}`}>
+      <div className="w-full max-w-[430px] min-h-screen p-4 flex flex-col">{children}</div>
+    </main>
+  );
+}
+
+function Button({ children, className = "", ...props }) {
   return (
     <button
       {...props}
-      className={`h-12 rounded-full bg-[#f5f5f7] px-6 text-[15px] font-semibold text-[#050507] transition active:scale-95 ${className}`}
+      className={`w-full h-14 rounded-2xl bg-[#58cc02] text-white font-bold text-[16px] shadow-[0_6px_0_#46a302] active:translate-y-[2px] active:shadow-none ${className}`}
     >
       {children}
     </button>
   );
 }
 
-function ReactorLogo() {
+function Card({ children, className = "", isDark = false }) {
   return (
-    <div className="relative mx-auto flex h-20 w-20 items-center justify-center">
-      <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-[#161628] to-[#0f0f18] ring-1 ring-white/[.08]" />
-      <div className="absolute inset-2 rounded-xl bg-white/[.03]" />
-      <div className="relative flex h-full w-full items-center justify-center">
-        <span className="absolute left-[35%] top-[40%] h-3 w-3 rounded-full bg-[#0a84ff]" />
-        <span className="absolute right-[35%] top-[40%] h-3 w-3 rounded-full bg-[#ff453a]" />
-        <span className="absolute bottom-[32%] left-1/2 h-3 w-3 -translate-x-1/2 rounded-full bg-[#30d158]" />
-      </div>
-      <div className="absolute inset-0 rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.03)]" />
+    <div className={`${isDark ? "bg-[#1f2937] shadow-[0_8px_0_#0f172a]" : "bg-white shadow-[0_8px_0_#e5e7eb]"} rounded-3xl p-4 ${className}`}>
+      {children}
     </div>
   );
 }
 
-function WelcomeOrbShowcase() {
+function ThemeMenu({ themeMode, setThemeMode, isDark }) {
+  const [open, setOpen] = useState(false);
+
   return (
-    <div className="relative mx-auto grid h-72 w-72 place-items-center">
-      <motion.div
-        className="absolute h-64 w-64 rounded-full bg-white/[.035] ring-1 ring-white/[.07]"
-        animate={{ scale: [0.96, 1.08, 0.96], opacity: [0.45, 0.95, 0.45] }}
-        transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <motion.div
-        className="absolute h-48 w-48 rounded-full bg-[#0a84ff]/20 blur-2xl"
-        animate={{ scale: [0.85, 1.28, 0.85], opacity: [0.25, 0.8, 0.25] }}
-        transition={{ duration: 2.1, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <motion.div
-        className="absolute h-36 w-36 rounded-full bg-[#ff453a]/10 blur-2xl"
-        animate={{ scale: [1.2, 0.88, 1.2], x: [-14, 14, -14], opacity: [0.28, 0.7, 0.28] }}
-        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-      />
-      {[0, 1, 2, 3, 4].map((i) => {
-        const player = PLAYERS[i % PLAYERS.length];
-        const size = i === 0 ? 30 : 22;
-        return (
-          <motion.span
-            key={i}
-            className="absolute rounded-full"
-            style={{
-              width: size,
-              height: size,
-              background: player.color,
-              boxShadow: `0 0 34px ${player.color}99, inset 0 1px 2px rgba(255,255,255,.55)`,
-            }}
-            animate={{
-              x: [0, Math.cos(i * 1.4) * 54, Math.cos(i * 1.4 + 1.4) * 38, 0],
-              y: [0, Math.sin(i * 1.4) * 54, Math.sin(i * 1.4 + 1.4) * 38, 0],
-              scale: [1, 1.28, 0.94, 1.16, 1],
-              opacity: [0.86, 1, 0.9, 1, 0.86],
-            }}
-            transition={{ duration: 2.2 + i * 0.12, repeat: Infinity, ease: "easeInOut", delay: i * 0.08 }}
-          />
-        );
-      })}
-      
-      <motion.div
-        className="absolute z-0 h-28 w-28 rounded-full border border-white/[.08]"
-        animate={{ scale: [0.95, 1.4], opacity: [0.5, 0] }}
-        transition={{ duration: 1.6, repeat: Infinity, ease: "easeOut" }}
-      />
-      <motion.div
-        className="absolute z-0 h-28 w-28 rounded-full border border-white/[.06]"
-        animate={{ scale: [0.95, 1.7], opacity: [0.4, 0] }}
-        transition={{ duration: 2.0, repeat: Infinity, ease: "easeOut", delay: 0.25 }}
-      />
+    <div className="absolute right-4 top-4 z-20">
+      <button
+        onClick={() => setOpen((value) => !value)}
+        className={`h-10 w-10 flex items-center justify-center rounded-2xl text-xs font-black shadow active:scale-95 ${
+          isDark ? "bg-[#1f2937] text-white shadow-[0_4px_0_#0f172a]" : "bg-white text-[#1f2937] shadow-[0_4px_0_#e5e7eb]"
+        }`}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3c0 .13 0 .26.01.39A7 7 0 0 0 21 12.79Z" fill="currentColor"/>
+        </svg>
+      </button>
+
+      {open && (
+        <motion.div
+          className={`absolute right-0 mt-2 w-36 rounded-3xl p-2 shadow-xl ${
+            isDark ? "bg-[#1f2937] shadow-[0_6px_0_#0f172a]" : "bg-white shadow-[0_6px_0_#e5e7eb]"
+          }`}
+          initial={{ opacity: 0, scale: 0.92, y: -6 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+        >
+          {["system", "light", "dark"].map((mode) => (
+            <button
+              key={mode}
+              onClick={() => {
+                setThemeMode(mode);
+                setOpen(false);
+              }}
+              className={`mb-2 h-10 w-full rounded-2xl text-xs font-black capitalize last:mb-0 active:scale-95 ${
+                themeMode === mode
+                  ? "bg-[#3a86ff] text-white shadow-[0_4px_0_#2563eb]"
+                  : isDark
+                    ? "bg-[#374151] text-[#d1d5db]"
+                    : "bg-[#f3f4f6] text-[#6b7280]"
+              }`}
+            >
+              {mode}
+            </button>
+          ))}
+        </motion.div>
+      )}
     </div>
   );
 }
 
-function WelcomeScreen({ onContinue }) {
+function Welcome({ onNext, themeMode, setThemeMode, theme }) {
+  const isDark = theme === "dark";
+
   return (
-    <AppShell>
-      <div className="flex flex-1 flex-col justify-between py-8">
-        <div className="flex flex-col items-center pt-8 text-center">
-          <ReactorLogo />
-          <h1 className="mt-7 text-[54px] font-semibold leading-[.92] tracking-[-0.065em]">
+    <AppShell theme={theme}>
+      <div className="relative flex flex-1 flex-col justify-between">
+        <ThemeMenu themeMode={themeMode} setThemeMode={setThemeMode} isDark={isDark} />
+        <div className="mt-8 text-center">
+          <h1 className={`text-5xl font-extrabold leading-tight ${isDark ? "text-white" : "text-[#1f2937]"}`}>
             Chain
             <br />
             Reaction
           </h1>
         </div>
-        <WelcomeOrbShowcase />
-        <div className="space-y-4 pb-4">
-          <PrimaryButton onClick={onContinue} className="w-full">
-            Continue
-          </PrimaryButton>
+
+        <div className="flex justify-center gap-3">
+          {PLAYERS.map((player, i) => (
+            <motion.div
+              key={player.name}
+              className="w-6 h-6 rounded-full shadow-md"
+              style={{ background: player.color }}
+              animate={{ y: [0, -6, 0] }}
+              transition={{ repeat: Infinity, duration: 1.2, delay: i * 0.08 }}
+            />
+          ))}
+        </div>
+
+        <div className="space-y-4">
+          <Button onClick={onNext}>Play</Button>
         </div>
       </div>
     </AppShell>
   );
 }
 
-function SetupScreen({ playerCount, setPlayerCount, mode, setMode, onStart, onBack }) {
-  return (
-    <AppShell>
-      <header className="mb-8 flex items-center justify-between pt-2">
-        <button
-          onClick={onBack}
-          className="flex h-10 items-center justify-center rounded-full bg-white/[.09] px-4 text-[15px] font-semibold text-[#eaeaf0] ring-1 ring-white/[.06] backdrop-blur-xl active:scale-95"
-        >
-          <span className="flex items-center leading-none">Back</span>
-        </button>
-        <div className="w-9" />
-      </header>
+function Setup({ playerCount, setPlayerCount, sizeKey, setSizeKey, onBack, onStart, theme }) {
+  const selectedSize = BOARD_SIZES[sizeKey];
+  const isDark = theme === "dark";
 
-      <div className="flex flex-1 flex-col">
-        <div className="mb-8">
-          <h1 className="text-[42px] font-semibold tracking-[-0.045em]">New Game</h1>
-          <p className="mt-2 text-[16px] leading-6 text-[#8e8e93]">Choose players and board size.</p>
+  return (
+    <AppShell theme={theme}>
+      <div className="flex flex-1 flex-col gap-5">
+        <button onClick={onBack} className={`self-start text-sm font-bold ${isDark ? "text-[#d1d5db]" : "text-[#6b7280]"}`}>
+          Back
+        </button>
+
+        <div className="mt-2">
+          <h1 className={`text-4xl font-extrabold leading-tight ${isDark ? "text-white" : "text-[#1f2937]"}`}>Game Setup</h1>
+          <p className={`mt-2 text-base font-semibold ${isDark ? "text-[#9ca3af]" : "text-[#9ca3af]"}`}>Pick your players and board.</p>
         </div>
 
-        <div className="space-y-5">
-          <div className="rounded-[2rem] bg-gradient-to-br from-[#1a1a2e]/60 via-[#1c1c30]/60 to-[#111118]/80 p-4 ring-1 ring-white/[.09] backdrop-blur-2xl">
-            <p className="mb-3 text-[13px] font-semibold text-[#8e8e93]">Players</p>
-            <div className="grid grid-cols-3 gap-2">
-              {[2, 3, 4].map((n) => (
-                <button
-                  key={n}
-                  onClick={() => setPlayerCount(n)}
-                  className={`h-12 rounded-full text-[15px] font-semibold transition active:scale-95 ${
-                    playerCount === n
-                      ? "bg-[#f5f5f7] text-[#050507]"
-                      : "bg-white/[.05] backdrop-blur-xl text-[#8e8e93] ring-1 ring-white/[.08]"
-                  }`}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
+        <Card isDark={isDark}>
+          <p className="mb-4 text-sm font-extrabold uppercase tracking-wide text-[#9ca3af]">Players</p>
+          <div className="grid grid-cols-3 gap-3">
+            {[2, 3, 4].map((n) => (
+              <motion.button
+                key={n}
+                onClick={() => setPlayerCount(n)}
+                className={`h-14 rounded-2xl text-lg font-black active:translate-y-[2px] active:shadow-none ${
+                  playerCount === n
+                    ? "bg-[#58cc02] text-white shadow-[0_5px_0_#46a302]"
+                    : isDark
+                      ? "bg-[#374151] text-[#d1d5db] shadow-[0_5px_0_#111827]"
+                      : "bg-[#f3f4f6] text-[#9ca3af] shadow-[0_5px_0_#e5e7eb]"
+                }`}
+                whileTap={{ scale: 0.96 }}
+              >
+                {n}
+              </motion.button>
+            ))}
           </div>
+        </Card>
 
-          <div className="rounded-[2rem] bg-gradient-to-br from-[#1a1a2e]/60 via-[#1c1c30]/60 to-[#111118]/80 p-4 ring-1 ring-white/[.09] backdrop-blur-2xl">
-            <p className="mb-3 text-[13px] font-semibold text-[#8e8e93]">Board</p>
-            <div className="space-y-2">
-              {Object.entries(BOARD_SIZES).map(([key, value]) => (
-                <button
-                  key={key}
-                  onClick={() => setMode(key)}
-                  className={`flex w-full items-center justify-between rounded-[1.35rem] px-4 py-3 text-left transition active:scale-[.99] ${
-                    mode === key
-                      ? "bg-[#f5f5f7] text-[#050507]"
-                      : "bg-white/[.05] backdrop-blur-xl text-[#eaeaf0] ring-1 ring-white/[.08]"
-                  }`}
-                >
-                  <span className="text-[15px] font-semibold">{value.label}</span>
-                  <span className={mode === key ? "text-[13px] text-[#3a3a3c]" : "text-[13px] text-[#8e8e93]"}>
-                    {value.rows} x {value.cols}
-                  </span>
-                </button>
-              ))}
-            </div>
+        <Card isDark={isDark}>
+          <p className="mb-4 text-sm font-extrabold uppercase tracking-wide text-[#9ca3af]">Board</p>
+          <div className="grid gap-3">
+            {Object.entries(BOARD_SIZES).map(([key, size]) => (
+              <motion.button
+                key={key}
+                onClick={() => setSizeKey(key)}
+                className={`flex items-center justify-between rounded-2xl px-4 py-4 font-black active:translate-y-[2px] active:shadow-none ${
+                  sizeKey === key
+                    ? "bg-[#3a86ff] text-white shadow-[0_5px_0_#2563eb]"
+                    : isDark
+                      ? "bg-[#374151] text-[#d1d5db] shadow-[0_5px_0_#111827]"
+                      : "bg-[#f3f4f6] text-[#6b7280] shadow-[0_5px_0_#e5e7eb]"
+                }`}
+                whileTap={{ scale: 0.98 }}
+              >
+                <span>{size.label}</span>
+                <span className="opacity-75">{size.rows} x {size.cols}</span>
+              </motion.button>
+            ))}
           </div>
+        </Card>
 
-          <div className="grid grid-cols-4 gap-2">
+        <Card isDark={isDark} className={isDark ? "bg-[#1f2937]" : "bg-[#fff7ed] shadow-[0_8px_0_#fed7aa]"}>
+          <div className="flex justify-center gap-3">
             {PLAYERS.slice(0, playerCount).map((player) => (
-              <div key={player.name} className="rounded-[1.35rem] bg-white/[.06] px-2 py-3 text-center ring-1 ring-white/[.08]">
-                <div className="mx-auto mb-2 h-3 w-3 rounded-full" style={{ background: player.color }} />
-                <p className="text-[11px] font-semibold text-[#c7c7cc]">{player.name}</p>
+              <div key={player.name} className="flex flex-col items-center gap-2">
+                <div className="h-7 w-7 rounded-full shadow-md" style={{ background: player.color }} />
+                <span className="text-xs font-black text-[#6b7280]">{player.name}</span>
               </div>
             ))}
           </div>
-        </div>
+        </Card>
 
-        <div className="mt-auto pb-4 pt-8">
-          <PrimaryButton onClick={onStart} className="w-full">
-            Start Game
-          </PrimaryButton>
+        <div className="mt-auto pb-2">
+          <Button onClick={onStart}>Start Game</Button>
+          <p className="mt-3 text-center text-xs font-bold text-[#9ca3af]">
+            {playerCount} players · {selectedSize.rows} x {selectedSize.cols}
+          </p>
         </div>
       </div>
     </AppShell>
   );
 }
 
-function GameScreen({
-  board,
-  rows,
-  cols,
-  players,
-  current,
-  currentPlayer,
-  alive,
-  winner,
-  busy,
-  message,
-  flyingOrbs,
-  onBack,
-  onPlay,
-  onReset,
-}) {
-  const [confirmReset, setConfirmReset] = useState(false);
-
-  const cellCenter = (r, c) => ({
-    left: `${((c + 0.5) / cols) * 100}%`,
-    top: `${((r + 0.5) / rows) * 100}%`,
-  });
-
-  return (
-    <AppShell>
-      <header className="mb-3 flex items-center justify-between">
-        <button
-          onClick={onBack}
-          className="flex h-10 items-center justify-center rounded-full bg-white/[.09] px-4 text-[15px] font-semibold text-[#eaeaf0] ring-1 ring-white/[.06] backdrop-blur-xl active:scale-95"
-          aria-label="Back to setup"
-        >
-          <span className="flex items-center leading-none">Back</span>
-        </button>
-        <div />
-      </header>
-
-      <div className="relative flex flex-1 w-full items-center pb-3">
-        <div
-          className="relative grid w-full touch-manipulation select-none gap-[7px] rounded-[2.2rem] bg-gradient-to-br from-[#1a1a2e]/60 via-[#1c1c30]/60 to-[#111118]/80 p-[10px] shadow-[0_28px_90px_rgba(0,0,0,.48)] ring-1 ring-white/[.06] backdrop-blur-2xl"
-          style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
-        >
-          {board.map((row, r) =>
-            row.map((cell, c) => {
-              const owner = cell.owner !== null ? players[cell.owner] : null;
-              const nearCritical = cell.count === cell.cap - 1 && cell.count > 0;
-              return (
-                <motion.button
-                  key={`${r}-${c}`}
-                  onClick={() => onPlay(r, c)}
-                  disabled={busy || winner !== null}
-                  aria-label={`Row ${r + 1}, column ${c + 1}, ${cell.count} of ${cell.cap} orbs`}
-                  className="relative overflow-hidden rounded-[1.05rem] bg-gradient-to-br from-[#161628] to-[#0f0f18] ring-1 ring-white/[.075] transition disabled:opacity-90 active:scale-[.96]"
-                  style={{
-                    aspectRatio: "1 / 1",
-                    background: "#111114",
-                  }}
-                  animate={nearCritical ? { y: [0, -1, 0], scale: [1, 1.015, 1] } : { y: 0, scale: 1 }}
-                  transition={nearCritical ? { repeat: Infinity, duration: 1.2 } : { duration: 0.18 }}
-                >
-                  <OrbCluster count={cell.count} color={owner?.color} cap={cell.cap} />
-                </motion.button>
-              );
-            })
-          )}
-
-          <div className="pointer-events-none absolute inset-[10px] z-20">
-            <AnimatePresence>
-              {flyingOrbs.map((orb) => {
-                const from = cellCenter(orb.from[0], orb.from[1]);
-                const to = cellCenter(orb.to[0], orb.to[1]);
-                return (
-                  <motion.span
-                    key={orb.id}
-                    className="absolute h-3.5 w-3.5 rounded-full"
-                    style={{
-                      left: from.left,
-                      top: from.top,
-                      background: orb.color,
-                      boxShadow: `0 0 24px ${orb.color}aa, inset 0 1px 2px rgba(255,255,255,.55)`,
-                      translateX: "-50%",
-                      translateY: "-50%",
-                    }}
-                    initial={{ scale: 1, opacity: 0.95 }}
-                    animate={{ left: to.left, top: to.top, scale: 1, opacity: [0.95, 1, 0.15] }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.28, ease: "easeOut" }}
-                  />
-                );
-              })}
-            </AnimatePresence>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-3 pb-2">
-        <div className="rounded-[2rem] bg-gradient-to-br from-[#1a1a2e]/60 via-[#1c1c30]/60 to-[#111118]/80 p-3 shadow-[0_22px_70px_rgba(0,0,0,.42)] ring-1 ring-white/[.06] backdrop-blur-2xl">
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ background: current.color }} />
-                <p className="truncate text-[17px] font-semibold tracking-[-.025em]">
-                  {winner === null ? current.name : `${players[winner].name} wins`}
-                </p>
-              </div>
-              <p className="mt-0.5 truncate text-[13px] text-[#8e8e93]">{message}</p>
-            </div>
-            <button
-              onClick={() => setConfirmReset(true)}
-              className="rounded-full bg-white/[.08] px-3 py-1.5 text-[12px] font-semibold text-[#c7c7cc] ring-1 ring-white/[.08] active:scale-95"
-            >
-              Reset
-            </button>
-          </div>
-        </div>
-
-        <div className="flex justify-center gap-2">
-          {players.map((p, i) => (
-            <div
-              key={p.name}
-              className={`flex items-center gap-2 rounded-full px-3 py-2 ring-1 transition ${
-                i === currentPlayer
-                  ? "bg-gradient-to-r from-[#0a84ff]/25 to-[#ff453a]/25 ring-white/[.25] scale-[1.05]"
-                  : "bg-white/[.05] backdrop-blur-xl ring-white/[.08]"
-              } ${alive.includes(i) ? "opacity-100" : "opacity-35 grayscale"}`}
-            >
-              <span className="h-2.5 w-2.5 rounded-full" style={{ background: p.color }} />
-              <span className="text-[12px] font-semibold text-[#c7c7cc]">{p.name}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <AnimatePresence>
-        {confirmReset && (
-          <motion.div
-            className="absolute inset-x-5 top-1/2 rounded-[2.2rem] bg-[#1c1c1e]/95 p-6 text-center shadow-[0_30px_90px_rgba(0,0,0,.55)] ring-1 ring-white/[.06] backdrop-blur-2xl"
-            initial={{ opacity: 0, scale: 0.96, y: "-43%" }}
-            animate={{ opacity: 1, scale: 1, y: "-50%" }}
-            exit={{ opacity: 0, scale: 0.96 }}
-          >
-            <h2 className="text-[24px] font-semibold tracking-[-.04em]">Reset game?</h2>
-            <p className="mt-2 text-[14px] text-[#8e8e93]">This will clear the current board.</p>
-            <div className="mt-5 grid grid-cols-2 gap-2">
-              <button
-                onClick={() => setConfirmReset(false)}
-                className="h-11 rounded-full bg-white/[.08] text-[15px] font-semibold text-[#eaeaf0] ring-1 ring-white/[.08] active:scale-95"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  setConfirmReset(false);
-                  onReset();
-                }}
-                className="h-11 rounded-full bg-[#f5f5f7] text-[15px] font-semibold text-[#050507] active:scale-95"
-              >
-                Reset
-              </button>
-            </div>
-          </motion.div>
-        )}
-        {winner !== null && (
-          <motion.div
-            className="absolute inset-x-5 top-1/2 rounded-[2.2rem] bg-[#1c1c1e]/90 p-6 text-center shadow-[0_30px_90px_rgba(0,0,0,.55)] ring-1 ring-white/[.06] backdrop-blur-2xl"
-            initial={{ opacity: 0, scale: 0.96, y: "-43%" }}
-            animate={{ opacity: 1, scale: 1, y: "-50%" }}
-            exit={{ opacity: 0, scale: 0.96 }}
-          >
-            <div className="mx-auto mb-4 h-14 w-14 rounded-full" style={{ background: players[winner].color }} />
-            <h2 className="text-[30px] font-semibold tracking-[-.05em]">{players[winner].name} wins</h2>
-            <p className="mt-1 text-[14px] text-[#8e8e93]">Board captured.</p>
-            <button
-              onClick={onReset}
-              className="mt-5 h-11 rounded-full bg-[#f5f5f7] px-6 text-[15px] font-semibold text-[#050507] active:scale-95"
-            >
-              New Game
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </AppShell>
-  );
-}
-
-export default function ChainReactionGame() {
-  const [screen, setScreen] = useState("welcome");
-  const [mode, setMode] = useState("classic");
-  const [playerCount, setPlayerCount] = useState(2);
-  const [{ rows, cols }, setSize] = useState(BOARD_SIZES.classic);
-  const [board, setBoard] = useState(() => makeBoard(BOARD_SIZES.classic.rows, BOARD_SIZES.classic.cols));
-  const [currentPlayer, setCurrentPlayer] = useState(0);
-  const [started, setStarted] = useState(false);
-  const [alive, setAlive] = useState([0, 1]);
+function Game({ rows, cols, players, onBack, onRestart, onSetup, theme }) {
+  const [board, setBoard] = useState(() => makeBoard(rows, cols));
+  const [turn, setTurn] = useState(0);
   const [winner, setWinner] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [turns, setTurns] = useState(0);
-  const [message, setMessage] = useState("Tap any empty cell.");
-  const [flyingOrbs, setFlyingOrbs] = useState([]);
-  const boardRef = useRef(board);
+  const [moves, setMoves] = useState(0);
+  const isDark = theme === "dark";
 
-  useEffect(() => {
-    boardRef.current = board;
-  }, [board]);
-
-  useEffect(() => {
-    const failedTests = runLogicTests().filter((result) => !result.passed);
-    if (failedTests.length) {
-      console.error("Chain Reaction logic tests failed", failedTests);
-    }
-  }, []);
-
-  const players = useMemo(() => PLAYERS.slice(0, playerCount), [playerCount]);
-  const current = players[currentPlayer] || players[0];
-
-  function reset(newMode = mode, newCount = playerCount, nextScreen = "game") {
-    const safeCount = Math.min(Math.max(newCount, 2), PLAYERS.length);
-    const size = BOARD_SIZES[newMode] || BOARD_SIZES.classic;
-    const fresh = makeBoard(size.rows, size.cols);
-    setMode(newMode);
-    setPlayerCount(safeCount);
-    setSize(size);
-    setBoard(fresh);
-    boardRef.current = fresh;
-    setCurrentPlayer(0);
-    setStarted(false);
-    setAlive(Array.from({ length: safeCount }, (_, i) => i));
-    setWinner(null);
-    setBusy(false);
-    setTurns(0);
-    setMessage("Tap any empty cell.");
-    setFlyingOrbs([]);
-    setScreen(nextScreen);
-  }
-
-  function startGame() {
-    reset(mode, playerCount, "game");
-  }
-
-  function nextAlivePlayer(from, aliveList, playerTotal = playerCount) {
-    for (let step = 1; step <= playerTotal; step += 1) {
-      const next = (from + step) % playerTotal;
-      if (aliveList.includes(next)) return next;
+  function nextActivePlayer(from, resolvedBoard, nextMoves) {
+    if (nextMoves < players.length) return (from + 1) % players.length;
+    const active = activePlayersOnBoard(resolvedBoard);
+    for (let step = 1; step <= players.length; step += 1) {
+      const candidate = (from + step) % players.length;
+      if (active.has(candidate)) return candidate;
     }
     return from;
   }
 
-  async function resolveReactions(startBoard, player, canEndGame = false) {
-    let working = cloneBoard(startBoard);
-    let guard = 0;
+  function play(r, c) {
+    if (winner !== null) return;
+    const cell = board[r][c];
+    if (cell.owner !== null && cell.owner !== turn) return;
 
-    while (guard < 1000) {
-      guard += 1;
-      const exploding = [];
-      for (let r = 0; r < rows; r += 1) {
-        for (let c = 0; c < cols; c += 1) {
-          if (working[r][c].count >= working[r][c].cap) exploding.push([r, c]);
-        }
-      }
+    const next = cloneBoard(board);
+    next[r][c].count += 1;
+    next[r][c].owner = turn;
 
-      if (!exploding.length) break;
-      setMessage("Chain reaction");
+    const resolved = resolveBoardAfterMove(next, turn, rows, cols);
+    const nextMoves = moves + 1;
+    const active = activePlayersOnBoard(resolved);
 
-      for (const [r, c] of exploding) {
-        working[r][c] = { ...working[r][c], pulse: working[r][c].pulse + 1 };
-      }
-      setBoard(cloneBoard(working));
-      await sleep(115);
+    setBoard(resolved);
+    setMoves(nextMoves);
 
-      const burstOrbs = [];
-      const neighborAdds = [];
-
-      // Phase 1: remove the exploding orbs from their source cells first.
-      // This prevents the source cell and flying orbs from both being visible at once.
-      for (const [r, c] of exploding) {
-        if (working[r][c].count < working[r][c].cap) continue;
-
-        const neighbors = getNeighbors(r, c, rows, cols);
-        for (const [nr, nc] of neighbors) {
-          burstOrbs.push({
-            id: `${guard}-${r}-${c}-${nr}-${nc}-${Math.random()}`,
-            from: [r, c],
-            to: [nr, nc],
-            color: PLAYERS[player].color,
-          });
-          neighborAdds.push([nr, nc]);
-        }
-
-        working[r][c].count -= working[r][c].cap;
-        if (working[r][c].count <= 0) {
-          working[r][c].count = 0;
-          working[r][c].owner = null;
-        }
-        working[r][c].pulse += 1;
-      }
-
-      setBoard(cloneBoard(working));
-
-      // Phase 2: animate the orbs traveling to adjacent cells.
-      if (burstOrbs.length) {
-        setFlyingOrbs(burstOrbs);
-        await sleep(260);
-        setFlyingOrbs([]);
-      }
-
-      // Phase 3: apply the received orbs after the travel animation finishes.
-      for (const [nr, nc] of neighborAdds) {
-        working[nr][nc].count += 1;
-        working[nr][nc].owner = player;
-        working[nr][nc].pulse += 1;
-      }
-
-      setBoard(cloneBoard(working));
-      if (canEndGame && activePlayersOnBoard(working).size <= 1) break;
-      await sleep(145);
-    }
-
-    return working;
-  }
-
-  async function play(row, col) {
-    if (busy || winner !== null) return;
-
-    const cell = boardRef.current[row][col];
-    if (cell.owner !== null && cell.owner !== currentPlayer) {
-      setMessage("Pick your own cell or an empty one.");
+    if (nextMoves >= players.length && active.size === 1) {
+      setWinner([...active][0]);
       return;
     }
 
-    setBusy(true);
-    setStarted(true);
-
-    const nextBoard = cloneBoard(boardRef.current);
-    nextBoard[row][col].count += 1;
-    nextBoard[row][col].owner = currentPlayer;
-    nextBoard[row][col].pulse += 1;
-    setBoard(nextBoard);
-    await sleep(90);
-
-    const newTurns = turns + 1;
-    const settled = await resolveReactions(nextBoard, currentPlayer, newTurns >= players.length);
-    boardRef.current = settled;
-    setBoard(settled);
-    setTurns(newTurns);
-
-    let newAlive = Array.from({ length: players.length }, (_, i) => i);
-    if (newTurns >= players.length) {
-      const present = activePlayersOnBoard(settled);
-      newAlive = newAlive.filter((p) => present.has(p));
-    }
-    setAlive(newAlive);
-
-    const present = activePlayersOnBoard(settled);
-    if (present.size === 1 && newTurns >= players.length) {
-      const only = [...present][0];
-      setWinner(only);
-      setMessage(`${players[only].name} wins`);
-      setBusy(false);
-      return;
-    }
-
-    const next = nextAlivePlayer(currentPlayer, newAlive, players.length);
-    setCurrentPlayer(next);
-    setMessage(`${players[next].name}'s turn`);
-    setBusy(false);
+    setTurn(nextActivePlayer(turn, resolved, nextMoves));
   }
+
+  return (
+    <AppShell theme={theme}>
+      <div className="flex flex-1 flex-col gap-4">
+        <button onClick={onBack} className={`self-start text-sm font-bold ${isDark ? "text-[#d1d5db]" : "text-[#6b7280]"}`}>
+          Back
+        </button>
+
+        <div className={`mx-auto w-full rounded-[2rem] p-3 ${isDark ? "bg-[#1f2937] shadow-[0_10px_0_#111827,0_18px_30px_rgba(0,0,0,.2)]" : "bg-[#eef2ff] shadow-[0_10px_0_#dbe4ff,0_18px_30px_rgba(31,41,55,.12)]"}`}>
+          <div
+            className="grid gap-2 w-full"
+            style={{
+              gridTemplateColumns: `repeat(${cols}, 1fr)`,
+              aspectRatio: `${cols} / ${rows}`,
+            }}
+          >
+            {board.map((row, r) =>
+              row.map((cell, c) => (
+                <motion.button
+                  key={`${r}-${c}`}
+                  onClick={() => play(r, c)}
+                  className={`relative rounded-[1.1rem] border-2 flex items-center justify-center aspect-square active:translate-y-[2px] ${
+                    isDark
+                      ? "bg-[#374151] border-[#4b5563] shadow-[0_4px_0_#111827,0_6px_12px_rgba(0,0,0,.18)]"
+                      : "bg-white border-[#f8fafc] shadow-[0_4px_0_#dbe4ff,0_6px_12px_rgba(31,41,55,.08)]"
+                  }`}
+                  whileTap={{ scale: 0.9 }}
+                >
+                  <Orb count={cell.count} color={players[cell.owner]?.color} cap={cell.cap} />
+                </motion.button>
+              ))
+            )}
+          </div>
+        </div>
+
+        {winner !== null && (
+          <motion.div
+            className={`${isDark ? "bg-[#1f2937] shadow-[0_8px_0_#111827]" : "bg-white shadow-[0_8px_0_#e5e7eb]"} relative overflow-hidden rounded-3xl p-4 text-center space-y-3 w-full max-w-[360px] mx-auto`}
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+          >
+            <ConfettiBurst />
+            <div className="mx-auto h-10 w-10 rounded-full" style={{ background: players[winner].color }} />
+            <p className={`text-xl font-black ${isDark ? "text-white" : "text-[#1f2937]"}`}>{players[winner].name} wins!</p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={onRestart}
+                className="flex-1 h-12 rounded-2xl bg-[#58cc02] text-white font-bold shadow-[0_5px_0_#46a302] active:translate-y-[2px]"
+              >
+                Play Again
+              </button>
+              <button
+                onClick={onSetup}
+                className={`${isDark ? "bg-[#374151] text-white shadow-[0_5px_0_#111827]" : "bg-[#f3f4f6] text-[#1f2937] shadow-[0_5px_0_#e5e7eb]"} flex-1 h-12 rounded-2xl font-bold active:translate-y-[2px]`}
+              >
+                Game Setup
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        <div className="mt-auto flex justify-center gap-2 pb-2">
+          {players.map((player, i) => (
+            <div
+              key={player.name}
+              className={`px-4 py-2 rounded-full text-sm font-bold shadow ${
+                i === turn && winner === null ? "bg-[#1f2937] text-white" : isDark ? "bg-[#374151] text-[#d1d5db]" : "bg-white text-[#6b7280]"
+              }`}
+            >
+              {player.name}
+            </div>
+          ))}
+        </div>
+      </div>
+    </AppShell>
+  );
+}
+
+export default function App() {
+  const [screen, setScreen] = useState("welcome");
+  const [playerCount, setPlayerCount] = useState(2);
+  const [sizeKey, setSizeKey] = useState("classic");
+  const [gameId, setGameId] = useState(0);
+  const [themeMode, setThemeMode] = useState("system");
+  const theme = useResolvedTheme(themeMode);
+
+  useEffect(() => {
+    const failedTests = runLogicTests().filter((result) => !result.passed);
+    if (failedTests.length) console.error("Chain Reaction logic tests failed", failedTests);
+  }, []);
 
   if (screen === "welcome") {
-    return <WelcomeScreen onContinue={() => setScreen("setup")} />;
+    return <Welcome onNext={() => setScreen("setup")} themeMode={themeMode} setThemeMode={setThemeMode} theme={theme} />;
   }
 
   if (screen === "setup") {
     return (
-      <SetupScreen
+      <Setup
         playerCount={playerCount}
         setPlayerCount={setPlayerCount}
-        mode={mode}
-        setMode={setMode}
-        onStart={startGame}
+        sizeKey={sizeKey}
+        setSizeKey={setSizeKey}
         onBack={() => setScreen("welcome")}
+        onStart={() => {
+          setGameId((id) => id + 1);
+          setScreen("game");
+        }}
+        theme={theme}
       />
     );
   }
 
+  const selectedSize = BOARD_SIZES[sizeKey];
+
   return (
-    <GameScreen
-      board={board}
-      rows={rows}
-      cols={cols}
-      players={players}
-      current={current}
-      currentPlayer={currentPlayer}
-      alive={alive}
-      winner={winner}
-      busy={busy}
-      message={message}
-      flyingOrbs={flyingOrbs}
+    <Game
+      key={`${sizeKey}-${playerCount}-${gameId}`}
+      rows={selectedSize.rows}
+      cols={selectedSize.cols}
+      players={PLAYERS.slice(0, playerCount)}
       onBack={() => setScreen("setup")}
-      onPlay={play}
-      onReset={() => reset()}
+      onRestart={() => setGameId((id) => id + 1)}
+      onSetup={() => setScreen("setup")}
+      theme={theme}
     />
   );
 }
