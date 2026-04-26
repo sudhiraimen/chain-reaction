@@ -339,20 +339,45 @@ function CrownIcon({ color }) {
 
 function AppShell({ children, theme = "light" }) {
   const isDark = theme === "dark";
+  const appBg = isDark ? "#111827" : "#f7f7fb";
 
   useEffect(() => {
     if (typeof document === "undefined") return;
+
+    const setMeta = (name, content) => {
+      let tag = document.querySelector(`meta[name="${name}"]`);
+      if (!tag) {
+        tag = document.createElement("meta");
+        tag.setAttribute("name", name);
+        document.head.appendChild(tag);
+      }
+      tag.setAttribute("content", content);
+    };
+
+    setMeta("viewport", "width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no");
+    setMeta("theme-color", appBg);
+    setMeta("apple-mobile-web-app-capable", "yes");
+    setMeta("mobile-web-app-capable", "yes");
+    setMeta("apple-mobile-web-app-status-bar-style", "black-translucent");
+
     document.documentElement.style.colorScheme = isDark ? "dark" : "light";
     document.documentElement.style.height = "100%";
     document.documentElement.style.overflow = "hidden";
+    document.documentElement.style.background = appBg;
     document.body.style.height = "100%";
     document.body.style.overflow = "hidden";
     document.body.style.margin = "0";
-  }, [isDark]);
+    document.body.style.background = appBg;
+  }, [isDark, appBg]);
 
   return (
-    <main className={`h-[100dvh] w-screen overflow-hidden flex items-center justify-center ${isDark ? "bg-[#111827]" : "bg-[#f7f7fb]"}`}>
-      <div className="w-full max-w-[430px] h-[100dvh] overflow-hidden px-4 py-3 flex flex-col box-border">{children}</div>
+    <main className="h-[100dvh] w-screen overflow-hidden flex items-center justify-center" style={{ background: appBg }}>
+      <div
+        className="w-full h-[100dvh] overflow-hidden px-4 pb-3 flex flex-col box-border"
+        style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
+      >
+        {children}
+      </div>
     </main>
   );
 }
@@ -460,7 +485,7 @@ function Welcome({ onNext, themeMode, setThemeMode, theme }) {
         </div>
       </div>
 
-      <div className="mt-auto pb-2">
+      <div className="mt-auto pb-6">
         <Button onClick={onNext} className="h-12">Play</Button>
       </div>
     </div>
