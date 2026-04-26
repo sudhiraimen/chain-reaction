@@ -209,6 +209,11 @@ function runLogicTests() {
     expect(!hasNegative, "resolved board should not contain negative counts");
   });
 
+  test("wide board corners still have two neighbors", () => {
+    const { rows, cols } = BOARD_SIZES.wide;
+    expect(getNeighbors(rows - 1, cols - 1, rows, cols).length === 2, "wide board corner should have 2 neighbors");
+  });
+
   return results;
 }
 
@@ -332,75 +337,22 @@ function CrownIcon({ color }) {
   );
 }
 
-function ConfettiBurst() {
-  const pieces = useMemo(() => {
-    const colors = ["#ff4d6d", "#3a86ff", "#06d6a0", "#ffd166", "#58cc02", "#a855f7"];
-    return Array.from({ length: 34 }, (_, i) => {
-      const side = i % 2 === 0 ? -1 : 1;
-      const spread = 35 + Math.random() * 95;
-      const lift = 120 + Math.random() * 110;
-      return {
-        id: i,
-        color: colors[i % colors.length],
-        startX: 50 + (Math.random() - 0.5) * 8,
-        startY: 54 + Math.random() * 4,
-        x: side * spread + (Math.random() - 0.5) * 40,
-        peakY: -lift,
-        endY: 100 + Math.random() * 90,
-        rotate: side * (120 + Math.random() * 280),
-        delay: Math.random() * 0.16,
-        width: Math.random() > 0.55 ? 7 : 5,
-        height: Math.random() > 0.55 ? 10 : 7,
-        radius: Math.random() > 0.8 ? "999px" : "3px",
-      };
-    });
-  }, []);
-
-  return (
-    <div className="pointer-events-none fixed inset-0 z-40 overflow-hidden">
-      {pieces.map((piece) => (
-        <motion.span
-          key={piece.id}
-          className="absolute"
-          style={{
-            left: `${piece.startX}%`,
-            top: `${piece.startY}%`,
-            width: piece.width,
-            height: piece.height,
-            borderRadius: piece.radius,
-            background: piece.color,
-          }}
-          initial={{ x: 0, y: 0, rotate: 0, opacity: 0, scale: 0.7 }}
-          animate={{
-            x: [0, piece.x * 0.55, piece.x],
-            y: [0, piece.peakY, piece.endY],
-            rotate: [0, piece.rotate * 0.45, piece.rotate],
-            opacity: [0, 0.85, 0.75, 0],
-            scale: [0.7, 1, 0.9],
-          }}
-          transition={{
-            duration: 1.45,
-            times: [0, 0.34, 1],
-            ease: "easeOut",
-            delay: piece.delay,
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
 function AppShell({ children, theme = "light" }) {
   const isDark = theme === "dark";
 
   useEffect(() => {
     if (typeof document === "undefined") return;
     document.documentElement.style.colorScheme = isDark ? "dark" : "light";
+    document.documentElement.style.height = "100%";
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.height = "100%";
+    document.body.style.overflow = "hidden";
+    document.body.style.margin = "0";
   }, [isDark]);
 
   return (
-    <main className={`min-h-screen flex items-center justify-center overflow-hidden touch-none ${isDark ? "bg-[#111827]" : "bg-[#f7f7fb]"}`}>
-      <div className="w-full max-w-[430px] min-h-screen p-4 flex flex-col">{children}</div>
+    <main className={`h-[100dvh] w-screen overflow-hidden flex items-center justify-center ${isDark ? "bg-[#111827]" : "bg-[#f7f7fb]"}`}>
+      <div className="w-full max-w-[430px] h-[100dvh] overflow-hidden px-4 py-3 flex flex-col box-border">{children}</div>
     </main>
   );
 }
@@ -484,30 +436,32 @@ function Welcome({ onNext, themeMode, setThemeMode, theme }) {
   const isDark = theme === "dark";
 
   return (
-    <div className="relative flex min-h-screen flex-1 flex-col justify-between">
+    <div className="relative flex h-full flex-1 flex-col justify-between">
       <ThemeMenu themeMode={themeMode} setThemeMode={setThemeMode} isDark={isDark} />
-      <div className="mt-8 text-center">
-        <h1 className={`text-5xl font-extrabold leading-tight ${isDark ? "text-white" : "text-[#1f2937]"}`}>
+      <div className="mt-6 text-center">
+        <h1 className={`text-5xl font-extrabold leading-[0.95] ${isDark ? "text-white" : "text-[#1f2937]"}`}>
           Chain
           <br />
           Reaction
         </h1>
       </div>
 
-      <div className="flex justify-center gap-3">
-        {PLAYERS.map((player, i) => (
-          <motion.div
-            key={player.name}
-            className="w-6 h-6 rounded-full shadow-md"
-            style={{ background: player.color }}
-            animate={{ y: [0, -8, 0], scale: [1, 1.12, 1] }}
-            transition={{ repeat: Infinity, duration: 1.05, delay: i * 0.08, ease: "easeInOut" }}
-          />
-        ))}
+      <div className="flex-1 flex items-center justify-center">
+        <div className="flex gap-3">
+          {PLAYERS.map((player, i) => (
+            <motion.div
+              key={player.name}
+              className="w-6 h-6 rounded-full shadow-md"
+              style={{ background: player.color }}
+              animate={{ y: [0, -8, 0], scale: [1, 1.12, 1] }}
+              transition={{ repeat: Infinity, duration: 1.05, delay: i * 0.08, ease: "easeInOut" }}
+            />
+          ))}
+        </div>
       </div>
 
-      <div className="space-y-4">
-        <Button onClick={onNext}>Play</Button>
+      <div className="mt-auto pb-2">
+        <Button onClick={onNext} className="h-12">Play</Button>
       </div>
     </div>
   );
@@ -518,24 +472,24 @@ function Setup({ playerCount, setPlayerCount, sizeKey, setSizeKey, onBack, onSta
   const isDark = theme === "dark";
 
   return (
-    <div className="flex min-h-screen flex-1 flex-col gap-5">
+    <div className="flex h-full flex-1 flex-col gap-3">
       <button onClick={onBack} className={`self-start text-sm font-bold ${isDark ? "text-[#d1d5db]" : "text-[#6b7280]"}`}>
         Back
       </button>
 
-      <div className="mt-2">
-        <h1 className={`text-4xl font-extrabold leading-tight ${isDark ? "text-white" : "text-[#1f2937]"}`}>Game Setup</h1>
-        <p className="mt-2 text-base font-semibold text-[#9ca3af]">Pick your players and board.</p>
+      <div className="mt-1">
+        <h1 className={`text-3xl font-extrabold leading-tight ${isDark ? "text-white" : "text-[#1f2937]"}`}>Game Setup</h1>
+        <p className="mt-1 text-sm font-semibold text-[#9ca3af]">Pick your players and board.</p>
       </div>
 
-      <Card isDark={isDark}>
-        <p className="mb-4 text-sm font-extrabold uppercase tracking-wide text-[#9ca3af]">Players</p>
+      <Card isDark={isDark} className="p-3">
+        <p className="mb-3 text-xs font-extrabold uppercase tracking-wide text-[#9ca3af]">Players</p>
         <div className="grid grid-cols-3 gap-3">
           {[2, 3, 4].map((n) => (
             <motion.button
               key={n}
               onClick={() => setPlayerCount(n)}
-              className={`h-14 rounded-2xl text-lg font-black active:translate-y-[2px] active:shadow-none ${
+              className={`h-11 rounded-2xl text-base font-black active:translate-y-[2px] active:shadow-none ${
                 playerCount === n
                   ? "bg-[#58cc02] text-white shadow-[0_5px_0_#46a302]"
                   : isDark
@@ -550,14 +504,14 @@ function Setup({ playerCount, setPlayerCount, sizeKey, setSizeKey, onBack, onSta
         </div>
       </Card>
 
-      <Card isDark={isDark}>
-        <p className="mb-4 text-sm font-extrabold uppercase tracking-wide text-[#9ca3af]">Board</p>
+      <Card isDark={isDark} className="p-3">
+        <p className="mb-3 text-xs font-extrabold uppercase tracking-wide text-[#9ca3af]">Board</p>
         <div className="grid gap-3">
           {Object.entries(BOARD_SIZES).map(([key, size]) => (
             <motion.button
               key={key}
               onClick={() => setSizeKey(key)}
-              className={`flex items-center justify-between rounded-2xl px-4 py-4 font-black active:translate-y-[2px] active:shadow-none ${
+              className={`flex items-center justify-between rounded-2xl px-4 py-3 font-black active:translate-y-[2px] active:shadow-none ${
                 sizeKey === key
                   ? "bg-[#3a86ff] text-white shadow-[0_5px_0_#2563eb]"
                   : isDark
@@ -573,11 +527,11 @@ function Setup({ playerCount, setPlayerCount, sizeKey, setSizeKey, onBack, onSta
         </div>
       </Card>
 
-      <Card isDark={isDark} className={isDark ? "bg-[#1f2937]" : "bg-[#fff7ed] shadow-[0_8px_0_#fed7aa]"}>
+      <Card isDark={isDark} className={isDark ? "bg-[#1f2937] p-3" : "bg-[#fff7ed] shadow-[0_6px_0_#fed7aa] p-3"}>
         <div className="flex justify-center gap-3">
           {PLAYERS.slice(0, playerCount).map((player) => (
             <div key={player.name} className="flex flex-col items-center gap-2">
-              <div className="h-7 w-7 rounded-full shadow-md" style={{ background: player.color }} />
+              <div className="h-6 w-6 rounded-full shadow-md" style={{ background: player.color }} />
               <span className={`text-xs font-black ${isDark ? "text-[#d1d5db]" : "text-[#6b7280]"}`}>{player.name}</span>
             </div>
           ))}
@@ -585,8 +539,8 @@ function Setup({ playerCount, setPlayerCount, sizeKey, setSizeKey, onBack, onSta
       </Card>
 
       <div className="mt-auto pb-2">
-        <Button onClick={onStart}>Start Game</Button>
-        <p className="mt-3 text-center text-xs font-bold text-[#9ca3af]">
+        <Button onClick={onStart} className="h-12">Start Game</Button>
+        <p className="mt-2 text-center text-xs font-bold text-[#9ca3af]">
           {playerCount} players · {selectedSize.rows} x {selectedSize.cols}
         </p>
       </div>
@@ -636,14 +590,14 @@ function Game({ rows, cols, players, onBack, onRestart, onSetup, theme }) {
   }
 
   return (
-    <div className="flex min-h-screen flex-1 flex-col gap-4">
+    <div className="flex h-full flex-1 flex-col gap-3">
       <button onClick={onBack} className={`self-start text-sm font-bold ${isDark ? "text-[#d1d5db]" : "text-[#6b7280]"}`}>
         Back
       </button>
 
-      <div className="flex flex-1 items-center justify-center">
+      <div className="flex flex-1 min-h-0 items-center justify-center">
         <div
-          className={`mx-auto w-full rounded-[2rem] p-3 ${
+          className={`mx-auto w-full max-h-full rounded-[2rem] p-3 ${
             isDark
               ? "bg-[#1f2937] shadow-[0_10px_0_#111827,0_18px_30px_rgba(0,0,0,.2)]"
               : "bg-[#eef2ff] shadow-[0_10px_0_#dbe4ff,0_18px_30px_rgba(31,41,55,.12)]"
@@ -677,34 +631,31 @@ function Game({ rows, cols, players, onBack, onRestart, onSetup, theme }) {
       </div>
 
       {winner !== null && (
-        <>
-          <ConfettiBurst />
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <motion.div
-              className={`${isDark ? "bg-[#1f2937] shadow-[0_8px_0_#111827]" : "bg-white shadow-[0_8px_0_#e5e7eb]"} relative overflow-hidden rounded-3xl p-4 text-center space-y-3 w-full max-w-[340px]`}
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-            >
-              <CrownIcon color={players[winner].color} />
-              <p className={`text-xl font-black ${isDark ? "text-white" : "text-[#1f2937]"}`}>{players[winner].name} wins!</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <motion.div
+            className={`${isDark ? "bg-[#1f2937] shadow-[0_8px_0_#111827]" : "bg-white shadow-[0_8px_0_#e5e7eb]"} relative overflow-hidden rounded-3xl p-4 text-center space-y-3 w-full max-w-[340px]`}
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+          >
+            <CrownIcon color={players[winner].color} />
+            <p className={`text-xl font-black ${isDark ? "text-white" : "text-[#1f2937]"}`}>{players[winner].name} wins!</p>
 
-              <div className="flex gap-3">
-                <button onClick={onRestart} className="flex-1 h-12 rounded-2xl bg-[#58cc02] text-white font-bold shadow-[0_5px_0_#46a302] active:translate-y-[2px]">
-                  Play Again
-                </button>
-                <button
-                  onClick={onSetup}
-                  className={`${isDark ? "bg-[#374151] text-white shadow-[0_5px_0_#111827]" : "bg-[#f3f4f6] text-[#1f2937] shadow-[0_5px_0_#e5e7eb]"} flex-1 h-12 rounded-2xl font-bold active:translate-y-[2px]`}
-                >
-                  Game Setup
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        </>
+            <div className="flex gap-3">
+              <button onClick={onRestart} className="flex-1 h-12 rounded-2xl bg-[#58cc02] text-white font-bold shadow-[0_5px_0_#46a302] active:translate-y-[2px]">
+                Play Again
+              </button>
+              <button
+                onClick={onSetup}
+                className={`${isDark ? "bg-[#374151] text-white shadow-[0_5px_0_#111827]" : "bg-[#f3f4f6] text-[#1f2937] shadow-[0_5px_0_#e5e7eb]"} flex-1 h-12 rounded-2xl font-bold active:translate-y-[2px]`}
+              >
+                Game Setup
+              </button>
+            </div>
+          </motion.div>
+        </div>
       )}
 
-      <div className="mt-auto flex justify-center gap-2 pb-2">
+      <div className="flex shrink-0 justify-center gap-2 pb-1">
         {players.map((player, i) => (
           <div
             key={player.name}
@@ -777,7 +728,7 @@ export default function App() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -20 }}
           transition={{ duration: 0.35, ease: "easeInOut" }}
-          className="min-h-screen flex flex-col"
+          className="h-full flex flex-col"
         >
           {screenNode}
         </motion.div>
