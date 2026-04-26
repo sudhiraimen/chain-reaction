@@ -335,21 +335,23 @@ function CrownIcon({ color }) {
 function ConfettiBurst() {
   const pieces = useMemo(() => {
     const colors = ["#ff4d6d", "#3a86ff", "#06d6a0", "#ffd166", "#58cc02", "#a855f7"];
-    return Array.from({ length: 80 }, (_, i) => {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 120 + Math.random() * 260;
+    return Array.from({ length: 34 }, (_, i) => {
+      const side = i % 2 === 0 ? -1 : 1;
+      const spread = 35 + Math.random() * 95;
+      const lift = 120 + Math.random() * 110;
       return {
         id: i,
         color: colors[i % colors.length],
-        startX: 50,
-        startY: 60,
-        x: Math.cos(angle) * speed,
-        y: Math.sin(angle) * speed,
-        rotate: (Math.random() - 0.5) * 900,
-        delay: Math.random() * 0.12,
-        width: Math.random() > 0.5 ? 8 : 6,
-        height: Math.random() > 0.5 ? 12 : 9,
-        radius: Math.random() > 0.7 ? "999px" : "3px",
+        startX: 50 + (Math.random() - 0.5) * 8,
+        startY: 54 + Math.random() * 4,
+        x: side * spread + (Math.random() - 0.5) * 40,
+        peakY: -lift,
+        endY: 100 + Math.random() * 90,
+        rotate: side * (120 + Math.random() * 280),
+        delay: Math.random() * 0.16,
+        width: Math.random() > 0.55 ? 7 : 5,
+        height: Math.random() > 0.55 ? 10 : 7,
+        radius: Math.random() > 0.8 ? "999px" : "3px",
       };
     });
   }, []);
@@ -368,15 +370,20 @@ function ConfettiBurst() {
             borderRadius: piece.radius,
             background: piece.color,
           }}
-          initial={{ x: 0, y: 0, rotate: 0, opacity: 0, scale: 0.8 }}
+          initial={{ x: 0, y: 0, rotate: 0, opacity: 0, scale: 0.7 }}
           animate={{
-            x: [0, piece.x * 0.65, piece.x],
-            y: [0, piece.y * 0.65 - 80, piece.y + 170],
-            rotate: [0, piece.rotate * 0.5, piece.rotate],
-            opacity: [0, 1, 1, 0],
-            scale: [0.8, 1.1, 0.85],
+            x: [0, piece.x * 0.55, piece.x],
+            y: [0, piece.peakY, piece.endY],
+            rotate: [0, piece.rotate * 0.45, piece.rotate],
+            opacity: [0, 0.85, 0.75, 0],
+            scale: [0.7, 1, 0.9],
           }}
-          transition={{ duration: 1.6, ease: "easeOut", delay: piece.delay }}
+          transition={{
+            duration: 1.45,
+            times: [0, 0.34, 1],
+            ease: "easeOut",
+            delay: piece.delay,
+          }}
         />
       ))}
     </div>
@@ -392,7 +399,7 @@ function AppShell({ children, theme = "light" }) {
   }, [isDark]);
 
   return (
-    <main className={`min-h-screen flex items-center justify-center ${isDark ? "bg-[#111827]" : "bg-[#f7f7fb]"}`}>
+    <main className={`min-h-screen flex items-center justify-center overflow-hidden touch-none ${isDark ? "bg-[#111827]" : "bg-[#f7f7fb]"}`}>
       <div className="w-full max-w-[430px] min-h-screen p-4 flex flex-col">{children}</div>
     </main>
   );
