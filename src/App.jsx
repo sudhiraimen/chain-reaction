@@ -342,7 +342,7 @@ function AppShell({ children, theme = "light" }) {
   const appBg = isDark ? "#111827" : "#f7f7fb";
 
   useEffect(() => {
-    if (typeof document === "undefined") return;
+    if (typeof document === "undefined") return undefined;
 
     const setMeta = (name, content) => {
       let tag = document.querySelector(`meta[name="${name}"]`);
@@ -354,27 +354,52 @@ function AppShell({ children, theme = "light" }) {
       tag.setAttribute("content", content);
     };
 
+    const setAppHeight = () => {
+      document.documentElement.style.setProperty("--app-height", `${window.innerHeight}px`);
+    };
+
     setMeta("viewport", "width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no");
     setMeta("theme-color", appBg);
     setMeta("apple-mobile-web-app-capable", "yes");
     setMeta("mobile-web-app-capable", "yes");
     setMeta("apple-mobile-web-app-status-bar-style", "black-translucent");
 
+    setAppHeight();
+    window.addEventListener("resize", setAppHeight);
+    window.addEventListener("orientationchange", setAppHeight);
+
     document.documentElement.style.colorScheme = isDark ? "dark" : "light";
     document.documentElement.style.height = "100%";
     document.documentElement.style.overflow = "hidden";
+    document.documentElement.style.overscrollBehavior = "none";
     document.documentElement.style.background = appBg;
     document.body.style.height = "100%";
     document.body.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "none";
+    document.body.style.position = "fixed";
+    document.body.style.inset = "0";
+    document.body.style.width = "100%";
     document.body.style.margin = "0";
     document.body.style.background = appBg;
+    document.body.style.touchAction = "none";
+
+    return () => {
+      window.removeEventListener("resize", setAppHeight);
+      window.removeEventListener("orientationchange", setAppHeight);
+    };
   }, [isDark, appBg]);
 
   return (
-    <main className="h-[100dvh] w-screen overflow-hidden flex items-center justify-center" style={{ background: appBg }}>
+    <main
+      className="fixed inset-0 w-screen overflow-hidden flex items-center justify-center"
+      style={{ height: "var(--app-height, 100dvh)", background: appBg, touchAction: "none" }}
+    >
       <div
-        className="w-full h-[100dvh] overflow-hidden px-4 pt-3 flex flex-col box-border"
-        style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+        className="w-full h-full overflow-hidden px-4 flex flex-col box-border"
+        style={{
+          paddingTop: "max(0.75rem, env(safe-area-inset-top))",
+          paddingBottom: "max(2rem, calc(env(safe-area-inset-bottom) + 1.25rem))",
+        }}
       >
         {children}
       </div>
@@ -389,7 +414,7 @@ function Button({ children, className = "", ...props }) {
       className={`w-full h-14 rounded-2xl bg-[#58cc02] text-white font-bold text-[16px] shadow-[0_6px_0_#46a302] ${className}`}
       initial={{ scale: 0.96, y: 8 }}
       animate={{ scale: [0.96, 1.05, 1], y: [8, -4, 0] }}
-      whileTap={{ scale: 0.94, y: 6, boxShadow: "0 0 0 #46a302" }}
+      whileTap={{ scale: 0.96 }}
       transition={{ type: "spring", stiffness: 520, damping: 18 }}
     >
       {children}
@@ -461,9 +486,9 @@ function Welcome({ onNext, themeMode, setThemeMode, theme }) {
   const isDark = theme === "dark";
 
   return (
-    <div className="relative flex h-full flex-1 flex-col justify-between">
+    <div className="relative flex h-full min-h-0 flex-1 flex-col justify-between">
       <ThemeMenu themeMode={themeMode} setThemeMode={setThemeMode} isDark={isDark} />
-      <div className="mt-2 text-center">
+      <div className="mt-1 text-center shrink-0">
         <h1 className={`text-5xl font-extrabold leading-[0.95] ${isDark ? "text-white" : "text-[#1f2937]"}`}>
           Chain
           <br />
@@ -471,7 +496,7 @@ function Welcome({ onNext, themeMode, setThemeMode, theme }) {
         </h1>
       </div>
 
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 min-h-0 flex items-center justify-center">
         <div className="flex gap-3">
           {PLAYERS.map((player, i) => (
             <motion.div
@@ -485,7 +510,7 @@ function Welcome({ onNext, themeMode, setThemeMode, theme }) {
         </div>
       </div>
 
-      <div className="mt-auto pb-2">
+      <div className="mt-auto shrink-0">
         <Button onClick={onNext} className="h-12">Play</Button>
       </div>
     </div>
