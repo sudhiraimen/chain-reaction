@@ -191,6 +191,24 @@ function runLogicTests() {
     expect(!hasCritical, "resolved board should not contain critical cells");
   });
 
+  test("full board resolution preserves valid owners", () => {
+    const board = makeBoard(4, 4);
+    board[1][1].count = 4;
+    board[1][1].owner = 0;
+    const resolved = resolveBoardAfterMove(board, 0, 4, 4);
+    const invalidOwner = resolved.some((row) => row.some((cell) => cell.owner !== null && (cell.owner < 0 || cell.owner >= PLAYERS.length)));
+    expect(!invalidOwner, "resolved board should not contain invalid owners");
+  });
+
+  test("resolved board never has negative orb counts", () => {
+    const board = makeBoard(3, 3);
+    board[1][1].count = 4;
+    board[1][1].owner = 0;
+    const resolved = resolveBoardAfterMove(board, 0, 3, 3);
+    const hasNegative = resolved.some((row) => row.some((cell) => cell.count < 0));
+    expect(!hasNegative, "resolved board should not contain negative counts");
+  });
+
   return results;
 }
 
@@ -207,8 +225,18 @@ function useResolvedTheme(themeMode) {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const update = () => setSystemTheme(media.matches ? "dark" : "light");
     update();
-    media.addEventListener?.("change", update);
-    return () => media.removeEventListener?.("change", update);
+
+    if (media.addEventListener) {
+      media.addEventListener("change", update);
+      return () => media.removeEventListener("change", update);
+    }
+
+    if (media.addListener) {
+      media.addListener(update);
+      return () => media.removeListener(update);
+    }
+
+    return undefined;
   }, []);
 
   return themeMode === "system" ? systemTheme : themeMode;
@@ -269,8 +297,8 @@ function Orb({ count, color, cap }) {
           }}
           animate={{
             scale: [1, pulseScale, 1],
-            y: count === 1 ? [0, offsets[i]?.y || 0, 0] : [0, -bounce, 0],
-            x: count === 1 ? [0, offsets[i]?.x || 0, 0] : progress > 0.85 ? [0, i % 2 === 0 ? 2 : -2, 0] : [0, 0, 0],
+            y: count === 1 ? [0, offsets[i] ? offsets[i].y : 0, 0] : [0, -bounce, 0],
+            x: count === 1 ? [0, offsets[i] ? offsets[i].x : 0, 0] : progress > 0.85 ? [0, i % 2 === 0 ? 2 : -2, 0] : [0, 0, 0],
           }}
           transition={{ duration, repeat: Infinity, ease: "easeInOut", delay: i * 0.08 }}
         />
@@ -295,12 +323,7 @@ function CrownIcon({ color }) {
           strokeWidth="4"
           strokeLinejoin="round"
         />
-        <path
-          d="M17 54H47"
-          stroke="#1f2937"
-          strokeWidth="5"
-          strokeLinecap="round"
-        />
+        <path d="M17 54H47" stroke="#1f2937" strokeWidth="5" strokeLinecap="round" />
         <circle cx="32" cy="16" r="4" fill="#fff7ed" stroke="#1f2937" strokeWidth="3" />
         <circle cx="10" cy="23.5" r="4" fill="#fff7ed" stroke="#1f2937" strokeWidth="3" />
         <circle cx="54" cy="23.5" r="4" fill="#fff7ed" stroke="#1f2937" strokeWidth="3" />
@@ -312,18 +335,23 @@ function CrownIcon({ color }) {
 function ConfettiBurst() {
   const pieces = useMemo(() => {
     const colors = ["#ff4d6d", "#3a86ff", "#06d6a0", "#ffd166", "#58cc02", "#a855f7"];
-    return Array.from({ length: 70 }, (_, i) => ({
-      id: i,
-      color: colors[i % colors.length],
-      startX: Math.random() * 100,
-      startY: 20 + Math.random() * 40,
-      x: (Math.random() - 0.5) * 420,
-      y: Math.random() * 520 - 280,
-      rotate: Math.random() * 900 - 450,
-      delay: Math.random() * 0.22,
-      width: Math.random() > 0.5 ? 8 : 6,
-      height: Math.random() > 0.5 ? 12 : 9,
-    }));
+    return Array.from({ length: 80 }, (_, i) => {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 120 + Math.random() * 260;
+      return {
+        id: i,
+        color: colors[i % colors.length],
+        startX: 50,
+        startY: 60,
+        x: Math.cos(angle) * speed,
+        y: Math.sin(angle) * speed,
+        rotate: (Math.random() - 0.5) * 900,
+        delay: Math.random() * 0.12,
+        width: Math.random() > 0.5 ? 8 : 6,
+        height: Math.random() > 0.5 ? 12 : 9,
+        radius: Math.random() > 0.7 ? "999px" : "3px",
+      };
+    });
   }, []);
 
   return (
@@ -331,23 +359,24 @@ function ConfettiBurst() {
       {pieces.map((piece) => (
         <motion.span
           key={piece.id}
-          className="absolute rounded-sm"
+          className="absolute"
           style={{
             left: `${piece.startX}%`,
             top: `${piece.startY}%`,
             width: piece.width,
             height: piece.height,
+            borderRadius: piece.radius,
             background: piece.color,
           }}
-          initial={{ x: (Math.random() - 0.5) * 40, y: (Math.random() - 0.5) * 40, rotate: 0, opacity: 1, scale: 0.8 }}
+          initial={{ x: 0, y: 0, rotate: 0, opacity: 0, scale: 0.8 }}
           animate={{
-            x: piece.x,
-            y: piece.y,
-            rotate: piece.rotate,
-            opacity: [1, 1, 0],
-            scale: [1, 1.15, 0.9],
+            x: [0, piece.x * 0.65, piece.x],
+            y: [0, piece.y * 0.65 - 80, piece.y + 170],
+            rotate: [0, piece.rotate * 0.5, piece.rotate],
+            opacity: [0, 1, 1, 0],
+            scale: [0.8, 1.1, 0.85],
           }}
-          transition={{ duration: 1.35, ease: "easeOut", delay: piece.delay }}
+          transition={{ duration: 1.6, ease: "easeOut", delay: piece.delay }}
         />
       ))}
     </div>
@@ -605,56 +634,66 @@ function Game({ rows, cols, players, onBack, onRestart, onSetup, theme }) {
         Back
       </button>
 
-      <div className={`mx-auto w-full rounded-[2rem] p-3 ${isDark ? "bg-[#1f2937] shadow-[0_10px_0_#111827,0_18px_30px_rgba(0,0,0,.2)]" : "bg-[#eef2ff] shadow-[0_10px_0_#dbe4ff,0_18px_30px_rgba(31,41,55,.12)]"}`}>
+      <div className="flex flex-1 items-center justify-center">
         <div
-          className="grid gap-2 w-full"
-          style={{
-            gridTemplateColumns: `repeat(${cols}, 1fr)`,
-            aspectRatio: `${cols} / ${rows}`,
-          }}
+          className={`mx-auto w-full rounded-[2rem] p-3 ${
+            isDark
+              ? "bg-[#1f2937] shadow-[0_10px_0_#111827,0_18px_30px_rgba(0,0,0,.2)]"
+              : "bg-[#eef2ff] shadow-[0_10px_0_#dbe4ff,0_18px_30px_rgba(31,41,55,.12)]"
+          }`}
         >
-          {board.map((row, r) =>
-            row.map((cell, c) => (
-              <motion.button
-                key={`${r}-${c}`}
-                onClick={() => play(r, c)}
-                className={`relative rounded-[1.1rem] border-2 flex items-center justify-center aspect-square active:translate-y-[2px] ${
-                  isDark
-                    ? "bg-[#374151] border-[#4b5563] shadow-[0_4px_0_#111827,0_6px_12px_rgba(0,0,0,.18)]"
-                    : "bg-white border-[#f8fafc] shadow-[0_4px_0_#dbe4ff,0_6px_12px_rgba(31,41,55,.08)]"
-                }`}
-                whileTap={{ scale: 0.88, y: 4 }}
-              >
-                <Orb count={cell.count} color={players[cell.owner]?.color} cap={cell.cap} />
-              </motion.button>
-            ))
-          )}
+          <div
+            className="grid gap-2 w-full"
+            style={{
+              gridTemplateColumns: `repeat(${cols}, 1fr)`,
+              aspectRatio: `${cols} / ${rows}`,
+            }}
+          >
+            {board.map((row, r) =>
+              row.map((cell, c) => (
+                <motion.button
+                  key={`${r}-${c}`}
+                  onClick={() => play(r, c)}
+                  className={`relative rounded-[1.1rem] border-2 flex items-center justify-center aspect-square active:translate-y-[2px] ${
+                    isDark
+                      ? "bg-[#374151] border-[#4b5563] shadow-[0_4px_0_#111827,0_6px_12px_rgba(0,0,0,.18)]"
+                      : "bg-white border-[#f8fafc] shadow-[0_4px_0_#dbe4ff,0_6px_12px_rgba(31,41,55,.08)]"
+                  }`}
+                  whileTap={{ scale: 0.88, y: 4 }}
+                >
+                  <Orb count={cell.count} color={players[cell.owner] ? players[cell.owner].color : undefined} cap={cell.cap} />
+                </motion.button>
+              ))
+            )}
+          </div>
         </div>
       </div>
 
       {winner !== null && (
         <>
           <ConfettiBurst />
-          <motion.div
-          className={`${isDark ? "bg-[#1f2937] shadow-[0_8px_0_#111827]" : "bg-white shadow-[0_8px_0_#e5e7eb]"} relative overflow-hidden rounded-3xl p-4 text-center space-y-3 w-full max-w-[360px] mx-auto`}
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-        >
-          <CrownIcon color={players[winner].color} />
-          <p className={`text-xl font-black ${isDark ? "text-white" : "text-[#1f2937]"}`}>{players[winner].name} wins!</p>
-
-          <div className="flex gap-3">
-            <button onClick={onRestart} className="flex-1 h-12 rounded-2xl bg-[#58cc02] text-white font-bold shadow-[0_5px_0_#46a302] active:translate-y-[2px]">
-              Play Again
-            </button>
-            <button
-              onClick={onSetup}
-              className={`${isDark ? "bg-[#374151] text-white shadow-[0_5px_0_#111827]" : "bg-[#f3f4f6] text-[#1f2937] shadow-[0_5px_0_#e5e7eb]"} flex-1 h-12 rounded-2xl font-bold active:translate-y-[2px]`}
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <motion.div
+              className={`${isDark ? "bg-[#1f2937] shadow-[0_8px_0_#111827]" : "bg-white shadow-[0_8px_0_#e5e7eb]"} relative overflow-hidden rounded-3xl p-4 text-center space-y-3 w-full max-w-[340px]`}
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
             >
-              Game Setup
-            </button>
+              <CrownIcon color={players[winner].color} />
+              <p className={`text-xl font-black ${isDark ? "text-white" : "text-[#1f2937]"}`}>{players[winner].name} wins!</p>
+
+              <div className="flex gap-3">
+                <button onClick={onRestart} className="flex-1 h-12 rounded-2xl bg-[#58cc02] text-white font-bold shadow-[0_5px_0_#46a302] active:translate-y-[2px]">
+                  Play Again
+                </button>
+                <button
+                  onClick={onSetup}
+                  className={`${isDark ? "bg-[#374151] text-white shadow-[0_5px_0_#111827]" : "bg-[#f3f4f6] text-[#1f2937] shadow-[0_5px_0_#e5e7eb]"} flex-1 h-12 rounded-2xl font-bold active:translate-y-[2px]`}
+                >
+                  Game Setup
+                </button>
+              </div>
+            </motion.div>
           </div>
-          </motion.div>
         </>
       )}
 
