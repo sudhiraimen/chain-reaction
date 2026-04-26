@@ -373,8 +373,8 @@ function AppShell({ children, theme = "light" }) {
   return (
     <main className="h-[100dvh] w-screen overflow-hidden flex items-center justify-center" style={{ background: appBg }}>
       <div
-        className="w-full h-[100dvh] overflow-hidden px-4 pb-3 flex flex-col box-border"
-        style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
+        className="w-full h-[100dvh] overflow-hidden px-4 pt-3 flex flex-col box-border"
+        style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
       >
         {children}
       </div>
@@ -409,7 +409,7 @@ function ThemeMenu({ themeMode, setThemeMode, isDark }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="absolute right-4 top-4 z-20">
+    <div className="absolute right-0 top-0 z-20">
       <button
         onClick={() => setOpen((value) => !value)}
         aria-label="Theme options"
@@ -463,7 +463,7 @@ function Welcome({ onNext, themeMode, setThemeMode, theme }) {
   return (
     <div className="relative flex h-full flex-1 flex-col justify-between">
       <ThemeMenu themeMode={themeMode} setThemeMode={setThemeMode} isDark={isDark} />
-      <div className="mt-6 text-center">
+      <div className="mt-2 text-center">
         <h1 className={`text-5xl font-extrabold leading-[0.95] ${isDark ? "text-white" : "text-[#1f2937]"}`}>
           Chain
           <br />
@@ -485,7 +485,7 @@ function Welcome({ onNext, themeMode, setThemeMode, theme }) {
         </div>
       </div>
 
-      <div className="mt-auto pb-6">
+      <div className="mt-auto pb-2">
         <Button onClick={onNext} className="h-12">Play</Button>
       </div>
     </div>
