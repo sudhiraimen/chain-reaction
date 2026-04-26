@@ -354,19 +354,12 @@ function AppShell({ children, theme = "light" }) {
       tag.setAttribute("content", content);
     };
 
-    const setAppHeight = () => {
-      document.documentElement.style.setProperty("--app-height", `${window.innerHeight}px`);
-    };
-
     setMeta("viewport", "width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no");
     setMeta("theme-color", appBg);
     setMeta("apple-mobile-web-app-capable", "yes");
     setMeta("mobile-web-app-capable", "yes");
     setMeta("apple-mobile-web-app-status-bar-style", "black-translucent");
 
-    setAppHeight();
-    window.addEventListener("resize", setAppHeight);
-    window.addEventListener("orientationchange", setAppHeight);
 
     document.documentElement.style.colorScheme = isDark ? "dark" : "light";
     document.documentElement.style.height = "100%";
@@ -376,23 +369,18 @@ function AppShell({ children, theme = "light" }) {
     document.body.style.height = "100%";
     document.body.style.overflow = "hidden";
     document.body.style.overscrollBehavior = "none";
-    document.body.style.position = "fixed";
-    document.body.style.inset = "0";
     document.body.style.width = "100%";
     document.body.style.margin = "0";
     document.body.style.background = appBg;
-    document.body.style.touchAction = "none";
+    document.body.style.touchAction = "manipulation";
 
-    return () => {
-      window.removeEventListener("resize", setAppHeight);
-      window.removeEventListener("orientationchange", setAppHeight);
-    };
+    return undefined;
   }, [isDark, appBg]);
 
   return (
     <main
       className="fixed inset-0 w-screen overflow-hidden flex items-center justify-center"
-      style={{ height: "var(--app-height, 100dvh)", background: appBg, touchAction: "none" }}
+      style={{ height: "100dvh", background: appBg, touchAction: "manipulation" }}
     >
       <div
         className="w-full h-full overflow-hidden px-4 flex flex-col box-border"
